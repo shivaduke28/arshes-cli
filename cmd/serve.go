@@ -15,11 +15,12 @@ import (
 )
 
 var serveCmd = &cobra.Command{
-	Use:   "serve <file>",
+	Use:   "serve [file]",
 	Short: "Start shader server and watch file for changes",
 	Long: `Start a WebSocket server and watch a shader file for changes.
-When the file changes, the new shader code is automatically sent to the connected iPhone.`,
-	Args: cobra.ExactArgs(1),
+When the file changes, the new shader code is automatically sent to the connected iPhone.
+If no file is specified, a new file with timestamp will be created (shader_YYYYMMDDhhmmss.slang).`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runServe,
 }
 
@@ -28,11 +29,22 @@ func init() {
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
-	filePath := args[0]
+	var filePath string
 
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return fmt.Errorf("file not found: %s", filePath)
+	if len(args) == 0 {
+		// Generate filename with timestamp
+		filePath = fmt.Sprintf("shader_%s.slang", time.Now().Format("20060102150405"))
+		// Create the file
+		if err := os.WriteFile(filePath, []byte(""), 0644); err != nil {
+			return fmt.Errorf("failed to create file: %w", err)
+		}
+		fmt.Printf("Created new shader file: %s\n", filePath)
+	} else {
+		filePath = args[0]
+		// Check if file exists
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			return fmt.Errorf("file not found: %s", filePath)
+		}
 	}
 
 	absPath, err := filepath.Abs(filePath)
