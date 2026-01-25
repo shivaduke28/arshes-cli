@@ -1,0 +1,39 @@
+package protocol
+
+// ServerMessage represents a message sent from CLI server to iPhone client
+type ServerMessage struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload,omitempty"`
+}
+
+// UpdateShaderPayload is the payload for updateShader messages
+type UpdateShaderPayload struct {
+	Code string `json:"code"`
+}
+
+// ClientMessage represents a message received from iPhone client
+type ClientMessage struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload,omitempty"`
+}
+
+// CurrentShaderPayload is the payload for currentShader messages
+type CurrentShaderPayload struct {
+	Code string `json:"code"`
+}
+
+// CompileResultPayload is the payload for compileResult messages
+type CompileResultPayload struct {
+	Success bool    `json:"success"`
+	Error   *string `json:"error,omitempty"`
+}
+
+// NewUpdateShaderMessage creates a new updateShader message
+func NewUpdateShaderMessage(code string) ServerMessage {
+	return ServerMessage{
+		Type: "updateShader",
+		Payload: UpdateShaderPayload{
+			Code: code,
+		},
+	}
+}
