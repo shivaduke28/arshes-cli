@@ -88,7 +88,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}
 	})
 
-	server.OnCurrentShader(func(code string) {
+	server.OnSyncShader(func(code string) {
 		// Save the current shader from iPhone to the file
 		ignoreMu.Lock()
 		ignoreNextChange = true

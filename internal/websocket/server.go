@@ -138,10 +138,10 @@ func (s *Server) SendUpdateShader(code string) error {
 	return nil
 }
 
-// OnCurrentShader registers a handler for currentShader messages
-func (s *Server) OnCurrentShader(handler func(code string)) {
-	s.handlers["currentShader"] = func(payload json.RawMessage) {
-		var p protocol.CurrentShaderPayload
+// OnSyncShader registers a handler for syncShader messages
+func (s *Server) OnSyncShader(handler func(code string)) {
+	s.handlers["syncShader"] = func(payload json.RawMessage) {
+		var p protocol.SyncShaderPayload
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return
 		}

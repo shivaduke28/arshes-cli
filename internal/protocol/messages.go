@@ -17,8 +17,8 @@ type ClientMessage struct {
 	Payload interface{} `json:"payload,omitempty"`
 }
 
-// CurrentShaderPayload is the payload for currentShader messages
-type CurrentShaderPayload struct {
+// SyncShaderPayload is the payload for syncShader messages
+type SyncShaderPayload struct {
 	Code string `json:"code"`
 }
 

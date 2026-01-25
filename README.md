@@ -13,18 +13,24 @@ go install github.com/shivaduke28/arshes-cli/cmd/arshes@latest
 ### 1. Start the Server on Your Computer
 
 ```bash
-# Start server and watch a shader file
+# Start server (creates a new shader file automatically)
+arshes serve
+
+# Or specify an existing shader file
 arshes serve shader.slang
 
 # With custom port
-arshes serve shader.slang --port 9000
+arshes serve --port 9000
 ```
+
+If no file is specified, a new file with timestamp will be created (e.g., `shader_20260125200800.slang`).
 
 The server will display its IP address and port:
 ```
+Created new shader file: shader_20260125200800.slang
 Server listening on 192.168.1.5:8080
 Waiting for connection...
-Watching shader.slang for changes
+Watching shader_20260125200800.slang for changes
 Press Ctrl+C to stop.
 ```
 
@@ -47,7 +53,10 @@ Now you can edit the shader file on your computer using any text editor (VS Code
 Start a WebSocket server and watch a shader file for changes.
 
 ```bash
-arshes serve <file> [flags]
+arshes serve [file] [flags]
+
+Arguments:
+  file             Shader file to watch (optional, auto-generated if not specified)
 
 Flags:
   -p, --port int   Server port (default 8080)
@@ -58,15 +67,76 @@ Flags:
 ```hlsl
 import Arshes;
 
-struct VertexOutput {
-    float4 position : SV_Position;
-    float2 texCoord : TEXCOORD;
-};
-
 [shader("fragment")]
-float4 fragmentMain(VertexOutput input) : SV_Target {
-    float2 uv = input.texCoord;
+float4 fragmentMain(float2 uv : TEXCOORD) : SV_Target {
     return float4(uv, 0.5, 1.0);
+}
+```
+
+## Protocol
+
+Arshes CLI communicates with the iOS app via WebSocket using JSON messages.
+
+### Endpoint
+
+```
+ws://<server-ip>:<port>/
+```
+
+### Message Format
+
+All messages are JSON objects with `type` and optional `payload` fields:
+
+```json
+{
+  "type": "<message-type>",
+  "payload": { ... }
+}
+```
+
+### Server → Client
+
+| Type | Payload | Description |
+|------|---------|-------------|
+| `updateShader` | `{ "code": string }` | Sends updated shader code to the client |
+
+### Client → Server
+
+| Type | Payload | Description |
+|------|---------|-------------|
+| `syncShader` | `{ "code": string }` | Sends the current shader code to the server |
+| `compileResult` | `{ "success": bool, "error"?: string }` | Reports shader compilation result |
+
+### Example Messages
+
+**Server sending shader update:**
+```json
+{
+  "type": "updateShader",
+  "payload": {
+    "code": "import Arshes;\n..."
+  }
+}
+```
+
+**Client reporting compile success:**
+```json
+{
+  "type": "compileResult",
+  "payload": {
+    "success": true
+  }
+}
+```
+
+**Client reporting compile error:**
+```json
+{
+  "type": "compileResult",
+  "payload": {
+    "success": false,
+    "error": "Syntax error at line 10"
+  }
 }
 ```
 
