@@ -3,15 +3,24 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 )
 
 var port int
 
+func getVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
+
 var rootCmd = &cobra.Command{
-	Use:   "arshes",
-	Short: "CLI tool for Arshes shader development",
+	Use:     "arshes",
+	Version: getVersion(),
+	Short:   "CLI tool for Arshes shader development",
 	Long: `Arshes CLI allows you to edit shaders on your computer
 and send them to your iPhone for real-time preview.
 
