@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var enableLog bool
+
 var serveCmd = &cobra.Command{
 	Use:   "serve [file]",
 	Short: "Start shader server and watch file for changes",
@@ -26,9 +28,36 @@ If no file is specified, a new file with timestamp will be created (shader_YYYYM
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
+	serveCmd.Flags().BoolVar(&enableLog, "log", false, "Enable logging to arshes.log (file will be overwritten on server start)")
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
+	// Set up log file if enabled
+	var logFile *os.File
+	if enableLog {
+		var err error
+		logFile, err = os.Create("arshes.log")
+		if err != nil {
+			return fmt.Errorf("failed to create log file: %w", err)
+		}
+		defer logFile.Close()
+	}
+
+	// Helper to log to both stdout and file (without ANSI colors in file, with timestamp)
+	logPrint := func(format string, colorCode string, args ...interface{}) {
+		msg := fmt.Sprintf(format, args...)
+		if colorCode != "" {
+			fmt.Printf("%s%s\033[0m", colorCode, msg)
+		} else {
+			fmt.Print(msg)
+		}
+		if logFile != nil {
+			timestamp := time.Now().Format("2006-01-02 15:04:05")
+			logFile.WriteString(fmt.Sprintf("[%s] %s", timestamp, msg))
+			logFile.Sync()
+		}
+	}
+
 	var filePath string
 
 	if len(args) == 0 {
@@ -38,7 +67,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		if err := os.WriteFile(filePath, []byte(""), 0644); err != nil {
 			return fmt.Errorf("failed to create file: %w", err)
 		}
-		fmt.Printf("Created new shader file: %s\n", filePath)
+		logPrint("Created new shader file: %s\n", "", filePath)
 	} else {
 		filePath = args[0]
 		// Check if file exists
@@ -55,7 +84,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Get local IP address
 	localIP, err := websocket.GetLocalIP()
 	if err != nil {
-		fmt.Printf("Warning: Could not determine local IP: %v\n", err)
+		logPrint("Warning: Could not determine local IP: %v\n", "\033[33m", err)
 		localIP = "localhost"
 	}
 
@@ -75,16 +104,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 		connectedMu.Lock()
 		connected = true
 		connectedMu.Unlock()
-		fmt.Printf("\033[32m✓\033[0m Client connected: %s\n", remoteAddr)
+		logPrint("✓ Client connected: %s\n", "\033[32m", remoteAddr)
 	})
 
 	server.OnDisconnect(func(remoteAddr string) {
 		connectedMu.Lock()
 		connected = server.IsConnected()
 		connectedMu.Unlock()
-		fmt.Printf("\033[33m!\033[0m Client disconnected: %s\n", remoteAddr)
+		logPrint("! Client disconnected: %s\n", "\033[33m", remoteAddr)
 		if !connected {
-			fmt.Println("Waiting for connection...")
+			logPrint("Waiting for connection...\n", "")
 		}
 	})
 
@@ -95,35 +124,35 @@ func runServe(cmd *cobra.Command, args []string) error {
 		ignoreMu.Unlock()
 
 		if err := os.WriteFile(absPath, []byte(code), 0644); err != nil {
-			fmt.Printf("\033[31m✗\033[0m Failed to write shader to file: %v\n", err)
+			logPrint("✗ Failed to write shader to file: %v\n", "\033[31m", err)
 			return
 		}
-		fmt.Printf("Received and saved current shader from client (%d bytes)\n", len(code))
+		logPrint("Received and saved current shader from client (%d bytes)\n", "", len(code))
 	})
 
 	server.OnCompileResult(func(success bool, errorMsg *string) {
 		if success {
-			fmt.Printf("\033[32m✓\033[0m Compiled successfully\n")
+			logPrint("✓ Compiled successfully\n", "\033[32m")
 		} else {
 			errStr := "unknown error"
 			if errorMsg != nil {
 				errStr = *errorMsg
 			}
-			fmt.Printf("\033[31m✗\033[0m Compile error:\n%s\n", errStr)
+			logPrint("✗ Compile error:\n%s\n", "\033[31m", errStr)
 		}
 	})
 
 	// Start server in background
 	go func() {
 		if err := server.Start(); err != nil {
-			fmt.Printf("Server error: %v\n", err)
+			logPrint("Server error: %v\n", "\033[31m", err)
 		}
 	}()
 
-	fmt.Printf("Server listening on %s:%d\n", localIP, port)
-	fmt.Println("Waiting for connection...")
-	fmt.Printf("Watching %s for changes\n", filePath)
-	fmt.Println("Press Ctrl+C to stop.")
+	logPrint("Server listening on %s:%d\n", "", localIP, port)
+	logPrint("Waiting for connection...\n", "")
+	logPrint("Watching %s for changes\n", "", filePath)
+	logPrint("Press Ctrl+C to stop.\n", "")
 
 	// Set up file watcher
 	watcher, err := fsnotify.NewWatcher()
@@ -189,16 +218,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 				content, err := os.ReadFile(absPath)
 				if err != nil {
-					fmt.Printf("\033[31m✗\033[0m Failed to read file: %v\n", err)
+					logPrint("✗ Failed to read file: %v\n", "\033[31m", err)
 					return
 				}
 
 				if err := server.SendUpdateShader(string(content)); err != nil {
-					fmt.Printf("\033[31m✗\033[0m Failed to send update: %v\n", err)
+					logPrint("✗ Failed to send update: %v\n", "\033[31m", err)
 					return
 				}
 
-				fmt.Printf("Sent shader update (%d bytes)\n", len(content))
+				logPrint("Sent shader update (%d bytes)\n", "", len(content))
 			})
 			debounceMu.Unlock()
 
@@ -206,10 +235,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 			if !ok {
 				return nil
 			}
-			fmt.Printf("Watcher error: %v\n", err)
+			logPrint("Watcher error: %v\n", "\033[33m", err)
 
 		case <-sigChan:
-			fmt.Println("\nShutting down...")
+			logPrint("\nShutting down...\n", "")
 			return nil
 		}
 	}

@@ -31,3 +31,7 @@ Thumbs.db
 # Local development
 .env
 .env.local
+
+# Generated files
+arshes.log
+shader_*.slang

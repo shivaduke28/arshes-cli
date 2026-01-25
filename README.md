@@ -21,6 +21,9 @@ arshes serve shader.slang
 
 # With custom port
 arshes serve --port 9000
+
+# Enable logging to arshes.log
+arshes serve --log
 ```
 
 If no file is specified, a new file with timestamp will be created (e.g., `shader_20260125200800.slang`).
@@ -60,6 +63,7 @@ Arguments:
 
 Flags:
   -p, --port int   Server port (default 8080)
+      --log        Enable logging to arshes.log
 ```
 
 ## Example Shader
