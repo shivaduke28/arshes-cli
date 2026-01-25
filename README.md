@@ -5,12 +5,7 @@ CLI tool for editing Arshes shaders from your computer.
 ## Installation
 
 ```bash
-# From source
-go install github.com/shivaduke28/arshes-cli@latest
-
-# Or build locally
-cd cli
-go build -o arshes
+go install github.com/shivaduke28/arshes-cli/cmd/arshes@latest
 ```
 
 ## Usage

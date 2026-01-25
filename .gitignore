@@ -1,6 +1,6 @@
-# Binaries
-arshes
-arshes-cli
+# Binaries (root level only)
+/arshes
+/arshes-cli
 *.exe
 *.exe~
 *.dll
