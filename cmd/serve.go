@@ -54,6 +54,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 	var connected bool
 	var connectedMu sync.Mutex
 
+	// Flag to ignore file events triggered by our own writes
+	var ignoreNextChange bool
+	var ignoreMu sync.Mutex
+
 	// Set up handlers
 	server.OnConnect(func(remoteAddr string) {
 		connectedMu.Lock()
@@ -73,8 +77,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 	})
 
 	server.OnCurrentShader(func(code string) {
-		// Optionally save the current shader from iPhone to the file
-		fmt.Printf("Received current shader from client (%d bytes)\n", len(code))
+		// Save the current shader from iPhone to the file
+		ignoreMu.Lock()
+		ignoreNextChange = true
+		ignoreMu.Unlock()
+
+		if err := os.WriteFile(absPath, []byte(code), 0644); err != nil {
+			fmt.Printf("\033[31m✗\033[0m Failed to write shader to file: %v\n", err)
+			return
+		}
+		fmt.Printf("Received and saved current shader from client (%d bytes)\n", len(code))
 	})
 
 	server.OnCompileResult(func(success bool, errorMsg *string) {
@@ -139,6 +151,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 			if event.Op&(fsnotify.Write|fsnotify.Create) == 0 {
 				continue
 			}
+
+			// Skip if this change was triggered by our own write
+			ignoreMu.Lock()
+			if ignoreNextChange {
+				ignoreNextChange = false
+				ignoreMu.Unlock()
+				continue
+			}
+			ignoreMu.Unlock()
 
 			// Debounce: wait a bit before sending to avoid multiple events
 			debounceMu.Lock()
