@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -239,6 +240,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 		case <-sigChan:
 			logPrint("\nShutting down...\n", "")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := server.Shutdown(ctx); err != nil {
+				logPrint("Shutdown error: %v\n", "\033[33m", err)
+			}
 			return nil
 		}
 	}

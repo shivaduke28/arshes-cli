@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -180,6 +181,24 @@ func (s *Server) ConnectionCount() int {
 // IsConnected returns true if at least one client is connected
 func (s *Server) IsConnected() bool {
 	return s.ConnectionCount() > 0
+}
+
+// Shutdown gracefully shuts down the server
+func (s *Server) Shutdown(ctx context.Context) error {
+	// Close all WebSocket connections
+	s.mu.Lock()
+	for conn := range s.connections {
+		conn.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "server shutting down"))
+		conn.Close()
+	}
+	s.mu.Unlock()
+
+	// Shutdown HTTP server
+	if s.httpServer != nil {
+		return s.httpServer.Shutdown(ctx)
+	}
+	return nil
 }
 
 func (s *Server) readLoop(conn *websocket.Conn, remoteAddr string) {
