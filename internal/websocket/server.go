@@ -151,13 +151,13 @@ func (s *Server) OnSyncShader(handler func(code string)) {
 }
 
 // OnCompileResult registers a handler for compileResult messages
-func (s *Server) OnCompileResult(handler func(success bool, errorMsg *string)) {
+func (s *Server) OnCompileResult(handler func(success bool, errorMsg *string, image *string)) {
 	s.handlers["compileResult"] = func(payload json.RawMessage) {
 		var p protocol.CompileResultPayload
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return
 		}
-		handler(p.Success, p.Error)
+		handler(p.Success, p.Error, p.Image)
 	}
 }
 

@@ -44,20 +44,23 @@ func runMcp(cmd *cobra.Command, args []string) error {
 		logger.Printf("iPhone disconnected: %s", remoteAddr)
 	})
 
+	// Resolve local address
+	localIP, err := websocket.GetLocalIP()
+	if err != nil {
+		localIP = "localhost"
+	}
+	wsAddr := fmt.Sprintf("%s:%d", localIP, port)
+
 	// Start WebSocket server in background
 	go func() {
-		localIP, err := websocket.GetLocalIP()
-		if err != nil {
-			localIP = "localhost"
-		}
-		logger.Printf("WebSocket server listening on %s:%d", localIP, port)
+		logger.Printf("WebSocket server listening on %s", wsAddr)
 		if err := wsServer.Start(); err != nil {
 			logger.Printf("WebSocket server error: %v", err)
 		}
 	}()
 
 	// Create and start MCP server
-	mcpSrv := mcpserver.NewServer(wsServer)
+	mcpSrv := mcpserver.NewServer(wsServer, wsAddr)
 	mcpSrv.SetupHandlers()
 
 	ctx, cancel := context.WithCancel(context.Background())

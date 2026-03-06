@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -27,18 +29,23 @@ type Server struct {
 	// lastSyncedShader stores the latest shader code received from iPhone
 	lastSyncedShader string
 	syncMu           sync.RWMutex
+
+	// WebSocket server address info
+	wsAddr string
 }
 
 type compileResult struct {
 	Success bool
 	Error   *string
+	Image   *string
 }
 
 // NewServer creates a new MCP server that bridges to the given WebSocket server.
-func NewServer(wsServer *ws.Server) *Server {
+func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	s := &Server{
 		ws:        wsServer,
 		compileCh: make(chan compileResult, 1),
+		wsAddr:    wsAddr,
 	}
 
 	mcpServer := server.NewMCPServer(
@@ -49,8 +56,10 @@ func NewServer(wsServer *ws.Server) *Server {
 	mcpServer.AddTool(
 		mcp.NewTool(
 			"compile_shader",
-			mcp.WithDescription("Send shader code to the connected iPhone for compilation. Returns the compile result."),
-			mcp.WithString("code", mcp.Required(), mcp.Description("Slang shader source code")),
+			mcp.WithDescription("Send shader code to the connected iPhone for compilation. Returns the compile result. Specify either 'code' or 'file' (file path to read shader from). If 'image' is specified, the rendered image is saved to that path instead of being returned inline."),
+			mcp.WithString("code", mcp.Description("Slang shader source code")),
+			mcp.WithString("file", mcp.Description("Path to a .slang file to compile")),
+			mcp.WithString("image", mcp.Description("Path to save the rendered image (JPEG). If omitted, image is returned inline as base64.")),
 		),
 		s.handleCompileShader,
 	)
@@ -79,12 +88,12 @@ func NewServer(wsServer *ws.Server) *Server {
 
 // SetupHandlers registers WebSocket callbacks on the WebSocket server.
 func (s *Server) SetupHandlers() {
-	s.ws.OnCompileResult(func(success bool, errorMsg *string) {
+	s.ws.OnCompileResult(func(success bool, errorMsg *string, image *string) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
 		select {
-		case s.compileCh <- compileResult{Success: success, Error: errorMsg}:
+		case s.compileCh <- compileResult{Success: success, Error: errorMsg, Image: image}:
 		default:
 			// Drop if no one is waiting
 		}
@@ -103,9 +112,22 @@ func (s *Server) Listen(ctx context.Context) error {
 }
 
 func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	code, ok := request.GetArguments()["code"].(string)
-	if !ok || code == "" {
-		return mcp.NewToolResultError("code argument is required"), nil
+	args := request.GetArguments()
+	code, _ := args["code"].(string)
+	filePath, _ := args["file"].(string)
+	imagePath, _ := args["image"].(string)
+
+	// Resolve code from file if specified
+	if filePath != "" {
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to read file: %v", err)), nil
+		}
+		code = string(data)
+	}
+
+	if code == "" {
+		return mcp.NewToolResultError("either 'code' or 'file' argument is required"), nil
 	}
 
 	if !s.ws.IsConnected() {
@@ -129,6 +151,21 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 	select {
 	case result := <-s.compileCh:
 		if result.Success {
+			if result.Image != nil {
+				// Save image to file if path specified
+				if imagePath != "" {
+					if err := saveBase64Image(*result.Image, imagePath); err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("compilation successful but failed to save image: %v", err)), nil
+					}
+					return mcp.NewToolResultText(fmt.Sprintf("compilation successful, image saved to %s", imagePath)), nil
+				}
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{
+						mcp.NewTextContent("compilation successful"),
+						mcp.NewImageContent(*result.Image, "image/jpeg"),
+					},
+				}, nil
+			}
 			return mcp.NewToolResultText("compilation successful"), nil
 		}
 		errMsg := "unknown error"
@@ -141,6 +178,17 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+func saveBase64Image(b64 string, path string) error {
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return fmt.Errorf("failed to decode base64: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
 }
 
 func (s *Server) handleGetShader(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -159,5 +207,5 @@ func (s *Server) handleGetStatus(ctx context.Context, request mcp.CallToolReques
 	if count > 0 {
 		return mcp.NewToolResultText(fmt.Sprintf("connected (%d client(s))", count)), nil
 	}
-	return mcp.NewToolResultText("no clients connected"), nil
+	return mcp.NewToolResultText(fmt.Sprintf("no clients connected (WebSocket: ws://%s)", s.wsAddr)), nil
 }

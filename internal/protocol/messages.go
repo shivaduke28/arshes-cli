@@ -26,6 +26,7 @@ type SyncShaderPayload struct {
 type CompileResultPayload struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
+	Image   *string `json:"image,omitempty"` // base64-encoded JPEG
 }
 
 // NewUpdateShaderMessage creates a new updateShader message
