@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -22,11 +24,13 @@ var upgrader = websocket.Upgrader{
 type Server struct {
 	port         int
 	connections  map[*websocket.Conn]string // conn -> remoteAddr
+	connWriteMu map[*websocket.Conn]*sync.Mutex
 	mu           sync.RWMutex
 	handlers     map[string]func(json.RawMessage)
 	onConnect    func(remoteAddr string)
 	onDisconnect func(remoteAddr string)
 	httpServer   *http.Server
+	logger       *log.Logger
 }
 
 // NewServer creates a new WebSocket server
@@ -34,7 +38,9 @@ func NewServer(port int) *Server {
 	return &Server{
 		port:        port,
 		connections: make(map[*websocket.Conn]string),
+		connWriteMu: make(map[*websocket.Conn]*sync.Mutex),
 		handlers:    make(map[string]func(json.RawMessage)),
+		logger:      log.New(os.Stderr, "[ws] ", log.LstdFlags),
 	}
 }
 
@@ -70,22 +76,23 @@ func GetLocalIP() (string, error) {
 
 func (s *Server) handleConnection(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := r.RemoteAddr
-	fmt.Printf("Received connection request from %s\n", remoteAddr)
+	s.logger.Printf("Received connection request from %s", remoteAddr)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("Failed to upgrade connection: %v\n", err)
+		s.logger.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
-	fmt.Printf("WebSocket upgrade successful for %s\n", remoteAddr)
+	s.logger.Printf("WebSocket upgrade successful for %s", remoteAddr)
 
 	// Add to connections map
 	s.mu.Lock()
 	s.connections[conn] = remoteAddr
+	s.connWriteMu[conn] = &sync.Mutex{}
 	count := len(s.connections)
 	s.mu.Unlock()
 
-	fmt.Printf("Active connections: %d\n", count)
+	s.logger.Printf("Active connections: %d", count)
 
 	if s.onConnect != nil {
 		s.onConnect(remoteAddr)
@@ -97,10 +104,11 @@ func (s *Server) handleConnection(w http.ResponseWriter, r *http.Request) {
 	// Remove from connections map
 	s.mu.Lock()
 	delete(s.connections, conn)
+	delete(s.connWriteMu, conn)
 	count = len(s.connections)
 	s.mu.Unlock()
 
-	fmt.Printf("Connection closed: %s (remaining: %d)\n", remoteAddr, count)
+	s.logger.Printf("Connection closed: %s (remaining: %d)", remoteAddr, count)
 
 	if s.onDisconnect != nil {
 		s.onDisconnect(remoteAddr)
@@ -125,7 +133,11 @@ func (s *Server) SendUpdateShader(code string) error {
 	var lastErr error
 	successCount := 0
 	for conn := range s.connections {
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		wmu := s.connWriteMu[conn]
+		wmu.Lock()
+		err := conn.WriteMessage(websocket.TextMessage, data)
+		wmu.Unlock()
+		if err != nil {
 			lastErr = err
 		} else {
 			successCount++
@@ -188,8 +200,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Close all WebSocket connections
 	s.mu.Lock()
 	for conn := range s.connections {
-		conn.WriteMessage(websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "server shutting down"))
+		if wmu, ok := s.connWriteMu[conn]; ok {
+			wmu.Lock()
+			conn.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseNormalClosure, "server shutting down"))
+			wmu.Unlock()
+		}
 		conn.Close()
 	}
 	s.mu.Unlock()

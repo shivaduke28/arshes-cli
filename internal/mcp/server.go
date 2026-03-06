@@ -56,7 +56,7 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	mcpServer.AddTool(
 		mcp.NewTool(
 			"compile_shader",
-			mcp.WithDescription("Send shader code to the connected iPhone for compilation. Returns the compile result. Specify either 'code' or 'file' (file path to read shader from). If 'image' is specified, the rendered image is saved to that path instead of being returned inline."),
+			mcp.WithDescription("Send shader code to the connected iPhone for compilation. Returns the compile result. Specify either 'code' or 'file' (file path to read shader from). If both are given, 'file' takes precedence. If 'image' is specified, the rendered image is saved to that path instead of being returned inline."),
 			mcp.WithString("code", mcp.Description("Slang shader source code")),
 			mcp.WithString("file", mcp.Description("Path to a .slang file to compile")),
 			mcp.WithString("image", mcp.Description("Path to save the rendered image (JPEG). If omitted, image is returned inline as base64.")),
@@ -83,11 +83,7 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	s.mcpServer = mcpServer
 	s.stdioServer = server.NewStdioServer(mcpServer)
 
-	return s
-}
-
-// SetupHandlers registers WebSocket callbacks on the WebSocket server.
-func (s *Server) SetupHandlers() {
+	// Register WebSocket callbacks
 	s.ws.OnCompileResult(func(success bool, errorMsg *string, image *string) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -104,6 +100,8 @@ func (s *Server) SetupHandlers() {
 		defer s.syncMu.Unlock()
 		s.lastSyncedShader = code
 	})
+
+	return s
 }
 
 // Listen starts the MCP stdio server.

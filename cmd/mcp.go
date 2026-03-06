@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	mcpserver "github.com/shivaduke28/arshes-cli/internal/mcp"
 	"github.com/shivaduke28/arshes-cli/internal/websocket"
@@ -61,7 +62,6 @@ func runMcp(cmd *cobra.Command, args []string) error {
 
 	// Create and start MCP server
 	mcpSrv := mcpserver.NewServer(wsServer, wsAddr)
-	mcpSrv.SetupHandlers()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -73,7 +73,7 @@ func runMcp(cmd *cobra.Command, args []string) error {
 		<-sigChan
 		logger.Println("Shutting down...")
 		cancel()
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*1e9)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
 		if err := wsServer.Shutdown(shutdownCtx); err != nil {
 			logger.Printf("WebSocket shutdown error: %v", err)
