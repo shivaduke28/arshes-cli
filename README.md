@@ -1,6 +1,6 @@
 # Arshes CLI
 
-CLI tool for editing Arshes shaders from your computer.
+CLI tool for editing Arshes shaders from your computer. Supports both file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
 
 ## Installation
 
@@ -66,6 +66,40 @@ Flags:
       --log        Enable logging to arshes.log
 ```
 
+### `mcp`
+
+Start an MCP (Model Context Protocol) server via stdio with a WebSocket bridge to iPhone. This allows AI agents like Claude Code to compile and preview shaders on the connected iPhone.
+
+```bash
+arshes mcp [flags]
+
+Flags:
+  -p, --port int   WebSocket server port (default 8080)
+```
+
+#### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `compile_shader` | Send shader code to iPhone for compilation. Accepts `code` (inline) or `file` (path to .slang file). Optionally save rendered image to `image` path. |
+| `get_shader` | Get the last synced shader code from iPhone. |
+| `get_status` | Get iPhone connection status and WebSocket address. |
+
+#### MCP Configuration
+
+Add to your `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "arshes": {
+      "command": "arshes",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
 ## Example Shader
 
 ```hlsl
@@ -109,7 +143,7 @@ All messages are JSON objects with `type` and optional `payload` fields:
 | Type | Payload | Description |
 |------|---------|-------------|
 | `syncShader` | `{ "code": string }` | Sends the current shader code to the server |
-| `compileResult` | `{ "success": bool, "error"?: string }` | Reports shader compilation result |
+| `compileResult` | `{ "success": bool, "error"?: string, "image"?: string }` | Reports shader compilation result with optional base64-encoded JPEG image |
 
 ### Example Messages
 
@@ -123,12 +157,13 @@ All messages are JSON objects with `type` and optional `payload` fields:
 }
 ```
 
-**Client reporting compile success:**
+**Client reporting compile success (with image):**
 ```json
 {
   "type": "compileResult",
   "payload": {
-    "success": true
+    "success": true,
+    "image": "/9j/4AAQ..."
   }
 }
 ```
