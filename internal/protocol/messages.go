@@ -11,12 +11,6 @@ type UpdateShaderPayload struct {
 	Code string `json:"code"`
 }
 
-// ClientMessage represents a message received from iPhone client
-type ClientMessage struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload,omitempty"`
-}
-
 // SyncShaderPayload is the payload for syncShader messages
 type SyncShaderPayload struct {
 	Code string `json:"code"`
@@ -26,6 +20,7 @@ type SyncShaderPayload struct {
 type CompileResultPayload struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
+	Image   *string `json:"image,omitempty"` // base64-encoded JPEG
 }
 
 // NewUpdateShaderMessage creates a new updateShader message

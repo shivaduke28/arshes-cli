@@ -131,7 +131,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		logPrint("Received and saved current shader from client (%d bytes)\n", "", len(code))
 	})
 
-	server.OnCompileResult(func(success bool, errorMsg *string) {
+	server.OnCompileResult(func(success bool, errorMsg *string, image *string) {
 		if success {
 			logPrint("✓ Compiled successfully\n", "\033[32m")
 		} else {
