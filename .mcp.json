@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "arshes": {
+      "type": "stdio",
+      "command": "go",
+      "args": ["run", "./cmd/arshes", "mcp"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}
