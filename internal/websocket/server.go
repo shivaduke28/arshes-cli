@@ -162,6 +162,17 @@ func (s *Server) OnSyncShader(handler func(code string)) {
 	}
 }
 
+// OnSyncShaderSpec registers a handler for syncShaderSpec messages
+func (s *Server) OnSyncShaderSpec(handler func(spec json.RawMessage)) {
+	s.handlers["syncShaderSpec"] = func(payload json.RawMessage) {
+		var p protocol.SyncShaderSpecPayload
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return
+		}
+		handler(p.Spec)
+	}
+}
+
 // OnCompileResult registers a handler for compileResult messages
 func (s *Server) OnCompileResult(handler func(success bool, errorMsg *string, image *string)) {
 	s.handlers["compileResult"] = func(payload json.RawMessage) {

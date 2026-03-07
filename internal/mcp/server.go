@@ -29,7 +29,9 @@ type Server struct {
 
 	// lastSyncedShader stores the latest shader code received from iPhone
 	lastSyncedShader string
-	syncMu           sync.RWMutex
+	// lastSyncedSpec stores the latest shader spec received from iPhone
+	lastSyncedSpec json.RawMessage
+	syncMu         sync.RWMutex
 
 	// WebSocket server address info
 	wsAddr string
@@ -108,6 +110,12 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 		s.syncMu.Lock()
 		defer s.syncMu.Unlock()
 		s.lastSyncedShader = code
+	})
+
+	s.ws.OnSyncShaderSpec(func(spec json.RawMessage) {
+		s.syncMu.Lock()
+		defer s.syncMu.Unlock()
+		s.lastSyncedSpec = spec
 	})
 
 	return s
@@ -209,40 +217,15 @@ func (s *Server) handleGetShader(ctx context.Context, request mcp.CallToolReques
 	return mcp.NewToolResultText(code), nil
 }
 
-type shaderSpec struct {
-	Language     string            `json:"language"`
-	Entry        string            `json:"entry"`
-	Uniforms     map[string]string `json:"uniforms"`
-	CustomParams struct {
-		Syntax      string `json:"syntax"`
-		Description string `json:"description"`
-	} `json:"customParams"`
-}
-
-var defaultShaderSpec = shaderSpec{
-	Language: "slang",
-	Entry:    "[shader(\"fragment\")]\nfloat4 fragmentMain(float2 uv : TEXCOORD) : SV_Target",
-	Uniforms: map[string]string{
-		"time":       "float, elapsed seconds",
-		"resolution": "float2, render size in pixels",
-		"cameraTex":  "Texture2D<float3>, camera image",
-		"depthTex":   "Texture2D<float>, LiDAR depth in meters (0=near, use isnan check)",
-		"backbuffer": "Texture2D<float3>, previous frame output",
-		"sampler":    "SamplerState",
-	},
-}
-
-func init() {
-	defaultShaderSpec.CustomParams.Syntax = "[range(min, default, max)] uniform float name;"
-	defaultShaderSpec.CustomParams.Description = "adds a slider on iPhone"
-}
-
 func (s *Server) handleGetShaderSpec(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	b, err := json.Marshal(defaultShaderSpec)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal spec: %v", err)), nil
+	s.syncMu.RLock()
+	spec := s.lastSyncedSpec
+	s.syncMu.RUnlock()
+
+	if spec == nil {
+		return mcp.NewToolResultText("no shader spec received from client yet"), nil
 	}
-	return mcp.NewToolResultText(string(b)), nil
+	return mcp.NewToolResultText(string(spec)), nil
 }
 
 func (s *Server) handleGetStatus(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {

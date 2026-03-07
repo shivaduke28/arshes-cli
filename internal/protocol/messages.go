@@ -1,5 +1,7 @@
 package protocol
 
+import "encoding/json"
+
 // ServerMessage represents a message sent from CLI server to iPhone client
 type ServerMessage struct {
 	Type    string      `json:"type"`
@@ -14,6 +16,11 @@ type UpdateShaderPayload struct {
 // SyncShaderPayload is the payload for syncShader messages
 type SyncShaderPayload struct {
 	Code string `json:"code"`
+}
+
+// SyncShaderSpecPayload is the payload for syncShaderSpec messages
+type SyncShaderSpecPayload struct {
+	Spec json.RawMessage `json:"spec"`
 }
 
 // CompileResultPayload is the payload for compileResult messages
