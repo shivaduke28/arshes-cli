@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -67,7 +68,7 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	mcpServer.AddTool(
 		mcp.NewTool(
 			"get_status",
-			mcp.WithDescription("Get the connection status of the iPhone client."),
+			mcp.WithDescription("Get the connection status and WebSocket server address of the iPhone client."),
 		),
 		s.handleGetStatus,
 	)
@@ -78,6 +79,14 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 			mcp.WithDescription("Get the current shader code from the connected iPhone. Returns the last synced shader code."),
 		),
 		s.handleGetShader,
+	)
+
+	mcpServer.AddTool(
+		mcp.NewTool(
+			"get_shader_spec",
+			mcp.WithDescription("Get the Slang shader API specification. Returns available built-in uniforms, parameter attributes, and shader entry point signature."),
+		),
+		s.handleGetShaderSpec,
 	)
 
 	s.mcpServer = mcpServer
@@ -198,6 +207,42 @@ func (s *Server) handleGetShader(ctx context.Context, request mcp.CallToolReques
 		return mcp.NewToolResultText("no shader has been synced from iPhone yet"), nil
 	}
 	return mcp.NewToolResultText(code), nil
+}
+
+type shaderSpec struct {
+	Language     string            `json:"language"`
+	Entry        string            `json:"entry"`
+	Uniforms     map[string]string `json:"uniforms"`
+	CustomParams struct {
+		Syntax      string `json:"syntax"`
+		Description string `json:"description"`
+	} `json:"customParams"`
+}
+
+var defaultShaderSpec = shaderSpec{
+	Language: "slang",
+	Entry:    "[shader(\"fragment\")]\nfloat4 fragmentMain(float2 uv : TEXCOORD) : SV_Target",
+	Uniforms: map[string]string{
+		"time":       "float, elapsed seconds",
+		"resolution": "float2, render size in pixels",
+		"cameraTex":  "Texture2D<float3>, camera image",
+		"depthTex":   "Texture2D<float>, LiDAR depth in meters (0=near, use isnan check)",
+		"backbuffer": "Texture2D<float3>, previous frame output",
+		"sampler":    "SamplerState",
+	},
+}
+
+func init() {
+	defaultShaderSpec.CustomParams.Syntax = "[range(min, default, max)] uniform float name;"
+	defaultShaderSpec.CustomParams.Description = "adds a slider on iPhone"
+}
+
+func (s *Server) handleGetShaderSpec(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	b, err := json.Marshal(defaultShaderSpec)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal spec: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(b)), nil
 }
 
 func (s *Server) handleGetStatus(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {

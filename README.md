@@ -83,7 +83,8 @@ Flags:
 |------|-------------|
 | `compile_shader` | Send shader code to iPhone for compilation. Accepts `code` (inline) or `file` (path to .slang file). Optionally save rendered image to `image` path. |
 | `get_shader` | Get the last synced shader code from iPhone. |
-| `get_status` | Get iPhone connection status and WebSocket address. |
+| `get_shader_spec` | Get the Slang shader API specification (available uniforms, parameter attributes, entry point signature). |
+| `get_status` | Get iPhone connection status and WebSocket server address. |
 
 #### MCP Configuration
 
