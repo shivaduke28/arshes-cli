@@ -25,7 +25,7 @@ var rootCmd = &cobra.Command{
 and send them to your iPhone for real-time preview.
 
 Usage:
-  arshes serve <file> [--port 8080]`,
+  arshes serve <file> [--port 10080]`,
 }
 
 // Execute runs the root command
@@ -37,5 +37,5 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().IntVarP(&port, "port", "p", 8080, "Server port")
+	rootCmd.PersistentFlags().IntVarP(&port, "port", "p", 10080, "Server port")
 }
