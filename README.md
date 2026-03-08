@@ -37,7 +37,7 @@ If no file is specified, a timestamped file (e.g., `shader_20260125200800.slang`
 ### Connecting from iPhone
 
 1. Open the Remote Editor feature in the Arshes iOS app
-2. Enter the server address (e.g., `192.168.1.5:8080`) and connect
+2. Enter the server address (e.g., `192.168.1.5:10080`) and connect
 
 Once connected, saving the shader file on your PC automatically sends it to iPhone for compilation and preview.
 
@@ -45,7 +45,7 @@ Once connected, saving the shader file on your PC automatically sends it to iPho
 
 | Flag | Description |
 |------|-------------|
-| `-p, --port int` | Server port (default: 8080) |
+| `-p, --port int` | Server port (default: 10080) |
 | `--log` | Enable logging to `arshes.log` |
 
 ## MCP
