@@ -1,6 +1,6 @@
 # Arshes CLI
 
-CLI tool for editing Arshes shaders from your computer. Supports both file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
+A CLI tool that works with the [Arshes](https://apps.apple.com/app/arshes/id6740044632) iOS app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
 
 ## Installation
 
@@ -8,76 +8,58 @@ CLI tool for editing Arshes shaders from your computer. Supports both file-watch
 go install github.com/shivaduke28/arshes-cli/cmd/arshes@latest
 ```
 
-## Usage
+### Requirements
 
-### 1. Start the Server on Your Computer
+- Go 1.24 or later
+- Arshes iOS app
+- PC and iPhone on the same local network (Wi-Fi)
+
+## Serve
+
+Start a WebSocket server that watches a shader file and sends updates to iPhone in real-time.
 
 ```bash
-# Start server (creates a new shader file automatically)
+# Start server (auto-generates a new shader file)
 arshes serve
 
-# Or specify an existing shader file
+# Specify an existing shader file
 arshes serve shader.slang
 
-# With custom port
+# Custom port
 arshes serve --port 9000
 
 # Enable logging to arshes.log
 arshes serve --log
 ```
 
-If no file is specified, a new file with timestamp will be created (e.g., `shader_20260125200800.slang`).
+If no file is specified, a timestamped file (e.g., `shader_20260125200800.slang`) is created automatically.
 
-The server will display its IP address and port:
-```
-Created new shader file: shader_20260125200800.slang
-Server listening on 192.168.1.5:8080
-Waiting for connection...
-Watching shader_20260125200800.slang for changes
-Press Ctrl+C to stop.
-```
+### Connecting from iPhone
 
-### 2. Connect from iPhone
+1. Open the Remote Editor feature in the Arshes iOS app
+2. Enter the server address (e.g., `192.168.1.5:8080`) and connect
 
-1. Open Arshes on your iPhone
-2. Open any shader in the editor
-3. Tap the Wi-Fi icon in the toolbar
-4. Enter the server address (e.g., `192.168.1.5:8080`)
-5. Tap Connect
+Once connected, saving the shader file on your PC automatically sends it to iPhone for compilation and preview.
 
-### 3. Edit and Preview
+### Flags
 
-Now you can edit the shader file on your computer using any text editor (VS Code, Vim, etc.). Every time you save the file, it will be automatically sent to your iPhone for compilation and preview.
+| Flag | Description |
+|------|-------------|
+| `-p, --port int` | Server port (default: 8080) |
+| `--log` | Enable logging to `arshes.log` |
 
-## Commands
-
-### `serve`
-
-Start a WebSocket server and watch a shader file for changes.
-
-```bash
-arshes serve [file] [flags]
-
-Arguments:
-  file             Shader file to watch (optional, auto-generated if not specified)
-
-Flags:
-  -p, --port int   Server port (default 8080)
-      --log        Enable logging to arshes.log
-```
-
-### `mcp`
+## MCP
 
 Start an MCP (Model Context Protocol) server via stdio with a WebSocket bridge to iPhone. This allows AI agents like Claude Code to compile and preview shaders on the connected iPhone.
 
 ```bash
-arshes mcp [flags]
+arshes mcp
 
-Flags:
-  -p, --port int   WebSocket server port (default 8080)
+# Custom port
+arshes mcp --port 9000
 ```
 
-#### MCP Tools
+### MCP Tools
 
 | Tool | Description |
 |------|-------------|
@@ -86,7 +68,7 @@ Flags:
 | `get_shader_spec` | Get the Slang shader API specification (available uniforms, parameter attributes, entry point signature). |
 | `get_status` | Get iPhone connection status and WebSocket server address. |
 
-#### MCP Configuration
+### Configuration
 
 Add to your `.mcp.json`:
 
@@ -111,77 +93,3 @@ float4 fragmentMain(float2 uv : TEXCOORD) : SV_Target {
     return float4(uv, 0.5, 1.0);
 }
 ```
-
-## Protocol
-
-Arshes CLI communicates with the iOS app via WebSocket using JSON messages.
-
-### Endpoint
-
-```
-ws://<server-ip>:<port>/
-```
-
-### Message Format
-
-All messages are JSON objects with `type` and optional `payload` fields:
-
-```json
-{
-  "type": "<message-type>",
-  "payload": { ... }
-}
-```
-
-### Server → Client
-
-| Type | Payload | Description |
-|------|---------|-------------|
-| `updateShader` | `{ "code": string }` | Sends updated shader code to the client |
-
-### Client → Server
-
-| Type | Payload | Description |
-|------|---------|-------------|
-| `syncShader` | `{ "code": string }` | Sends the current shader code to the server |
-| `compileResult` | `{ "success": bool, "error"?: string, "image"?: string }` | Reports shader compilation result with optional base64-encoded JPEG image |
-
-### Example Messages
-
-**Server sending shader update:**
-```json
-{
-  "type": "updateShader",
-  "payload": {
-    "code": "import Arshes;\n..."
-  }
-}
-```
-
-**Client reporting compile success (with image):**
-```json
-{
-  "type": "compileResult",
-  "payload": {
-    "success": true,
-    "image": "/9j/4AAQ..."
-  }
-}
-```
-
-**Client reporting compile error:**
-```json
-{
-  "type": "compileResult",
-  "payload": {
-    "success": false,
-    "error": "Syntax error at line 10"
-  }
-}
-```
-
-## Requirements
-
-- Go 1.21 or later (for building)
-- Arshes iOS app
-- Same local network (Wi-Fi) as your iPhone
