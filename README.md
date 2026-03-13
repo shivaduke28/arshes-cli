@@ -1,6 +1,6 @@
 # Arshes CLI
 
-A CLI tool that works with the [Arshes](https://apps.apple.com/app/arshes/id6740044632) iOS app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
+A CLI tool that works with the [Arshes](https://x.com/arshes_net) iOS app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
 
 ## Installation
 
