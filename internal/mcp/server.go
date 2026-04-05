@@ -231,7 +231,7 @@ func (s *Server) handleGetShaderSpec(ctx context.Context, request mcp.CallToolRe
 func (s *Server) handleGetStatus(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	count := s.ws.ConnectionCount()
 	if count > 0 {
-		return mcp.NewToolResultText(fmt.Sprintf("connected (%d client(s))", count)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("connected (%d client(s), WebSocket: ws://%s)", count, s.wsAddr)), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("no clients connected (WebSocket: ws://%s)", s.wsAddr)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("No clients connected. Ask the user to connect their iPhone to ws://%s", s.wsAddr)), nil
 }
