@@ -125,6 +125,9 @@ func runMcpHTTP(logger *log.Logger, wsServer *websocket.Server, mcpSrv *mcpserve
 		logger.Println("Shutting down...")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
+		if err := wsServer.Shutdown(shutdownCtx); err != nil {
+			logger.Printf("WebSocket shutdown error: %v", err)
+		}
 		if err := mcpSrv.Shutdown(shutdownCtx); err != nil {
 			logger.Printf("MCP shutdown error: %v", err)
 		}
