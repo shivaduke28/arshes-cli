@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -23,6 +24,7 @@ var upgrader = websocket.Upgrader{
 // Server represents a WebSocket server that supports multiple connections
 type Server struct {
 	port         int
+	secret       string
 	connections  map[*websocket.Conn]string // conn -> remoteAddr
 	connWriteMu map[*websocket.Conn]*sync.Mutex
 	mu           sync.RWMutex
@@ -33,10 +35,12 @@ type Server struct {
 	logger       *log.Logger
 }
 
-// NewServer creates a new WebSocket server
-func NewServer(port int) *Server {
+// NewServer creates a new WebSocket server.
+// If secret is non-empty, clients must provide it via the "secret" query parameter to connect.
+func NewServer(port int, secret string) *Server {
 	return &Server{
 		port:        port,
+		secret:      secret,
 		connections: make(map[*websocket.Conn]string),
 		connWriteMu: make(map[*websocket.Conn]*sync.Mutex),
 		handlers:    make(map[string]func(json.RawMessage)),
@@ -78,6 +82,17 @@ func GetLocalIP() (string, error) {
 func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := r.RemoteAddr
 	s.logger.Printf("Received connection request from %s", remoteAddr)
+
+	// Verify secret if configured.
+	// Note: Do not log r.URL as it contains the secret query parameter.
+	if s.secret != "" {
+		provided := r.URL.Query().Get("secret")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.secret)) != 1 {
+			s.logger.Printf("Rejected connection from %s: invalid secret", remoteAddr)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

@@ -9,12 +9,21 @@ import (
 )
 
 var port int
+var secret string
 
 func getVersion() string {
 	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" {
 		return info.Main.Version
 	}
 	return "dev"
+}
+
+// getSecret returns the secret from the flag or ARSHES_SECRET env var.
+func getSecret() string {
+	if secret != "" {
+		return secret
+	}
+	return os.Getenv("ARSHES_SECRET")
 }
 
 var rootCmd = &cobra.Command{
@@ -38,4 +47,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().IntVarP(&port, "port", "p", 10080, "Server port")
+	rootCmd.PersistentFlags().StringVar(&secret, "secret", "", "Secret token for WebSocket authentication (can also be set via ARSHES_SECRET env var)")
 }

@@ -25,7 +25,7 @@ func TestE2EScenario(t *testing.T) {
 
 	// 1. Start server
 	port := getFreePort(t)
-	server := ws.NewServer(port)
+	server := ws.NewServer(port, "")
 
 	connected := make(chan bool, 1)
 	server.OnConnect(func(remoteAddr string) {
@@ -99,6 +99,41 @@ func TestE2EScenario(t *testing.T) {
 		t.Logf("shutdown error (expected): %v", err)
 	}
 	t.Log("6. Server shut down")
+}
+
+func TestSecretAuthentication(t *testing.T) {
+	port := getFreePort(t)
+	server := ws.NewServer(port, "test-secret")
+
+	go server.Start()
+	time.Sleep(100 * time.Millisecond)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+	}()
+
+	// Connection without secret should fail
+	url := fmt.Sprintf("ws://localhost:%d/", port)
+	_, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err == nil {
+		t.Fatal("expected connection without secret to be rejected")
+	}
+
+	// Connection with wrong secret should fail
+	urlWrong := fmt.Sprintf("ws://localhost:%d/?secret=wrong", port)
+	_, _, err = websocket.DefaultDialer.Dial(urlWrong, nil)
+	if err == nil {
+		t.Fatal("expected connection with wrong secret to be rejected")
+	}
+
+	// Connection with correct secret should succeed
+	urlCorrect := fmt.Sprintf("ws://localhost:%d/?secret=test-secret", port)
+	conn, _, err := websocket.DefaultDialer.Dial(urlCorrect, nil)
+	if err != nil {
+		t.Fatalf("expected connection with correct secret to succeed: %v", err)
+	}
+	conn.Close()
 }
 
 // Helper functions
