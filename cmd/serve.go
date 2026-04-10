@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -33,6 +34,8 @@ func init() {
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
+	warnWeakSecret(log.Default())
+
 	// Set up log file if enabled
 	var logFile *os.File
 	if enableLog {

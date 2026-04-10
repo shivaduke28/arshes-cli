@@ -119,6 +119,24 @@ Start the server first by `arshes mcp --transport http`, then add to your `.mcp.
 }
 ```
 
+**Streamable HTTP with authentication:**
+
+When `--secret` is set, the MCP endpoint requires `Authorization: Bearer <secret>` header:
+
+```json
+{
+  "mcpServers": {
+    "arshes": {
+      "type": "http",
+      "url": "https://your-app.fly.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer mysecret"
+      }
+    }
+  }
+}
+```
+
 ## Example Shader
 
 ```hlsl
