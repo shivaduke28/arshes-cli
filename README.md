@@ -50,14 +50,24 @@ Once connected, saving the shader file on your PC automatically sends it to iPho
 
 ## MCP
 
-Start an MCP (Model Context Protocol) server via stdio with a WebSocket bridge to iPhone. This allows AI agents like Claude Code to compile and preview shaders on the connected iPhone.
+Start an MCP (Model Context Protocol) server with a WebSocket bridge to iPhone. This allows AI agents like Claude Code to compile and preview shaders on the connected iPhone.
 
 ```bash
 arshes mcp
 
 # Custom port
 arshes mcp --port 9000
+
+# Use Streamable HTTP transport (for remote deployment)
+arshes mcp --transport http
 ```
+
+### Transport Modes
+
+| Mode | Description |
+|------|-------------|
+| `stdio` (default) | Communicates via stdin/stdout. The AI agent launches and manages the process. |
+| `http` | Communicates via Streamable HTTP. Both the MCP endpoint (`/mcp`) and the WebSocket endpoint (`/`) are served on the same port. |
 
 ### MCP Tools
 
@@ -69,6 +79,8 @@ arshes mcp --port 9000
 | `get_status` | Get iPhone connection status and WebSocket server address. |
 
 ### Configuration
+
+**stdio (default):**
 
 Add to your `.mcp.json`:
 
@@ -83,11 +95,24 @@ Add to your `.mcp.json`:
 }
 ```
 
+**Streamable HTTP:**
+
+Start the server first by `arshes mcp --transport http`, then add to your `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "arshes": {
+      "type": "http",
+      "url": "http://localhost:10080/mcp"
+    }
+  }
+}
+```
+
 ## Example Shader
 
 ```hlsl
-import Arshes;
-
 [shader("fragment")]
 float4 fragmentMain(float2 uv : TEXCOORD) : SV_Target {
     return float4(uv, 0.5, 1.0);
