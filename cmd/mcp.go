@@ -41,7 +41,7 @@ func runMcp(cmd *cobra.Command, args []string) error {
 	logger := log.New(os.Stderr, "[arshes-mcp] ", log.LstdFlags)
 
 	// Create WebSocket server
-	wsServer := websocket.NewServer(port, GetSecret())
+	wsServer := websocket.NewServer(port, getSecret())
 
 	wsServer.OnConnect(func(remoteAddr string) {
 		logger.Printf("iPhone connected: %s", remoteAddr)

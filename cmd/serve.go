@@ -90,7 +90,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create server
-	server := websocket.NewServer(port, GetSecret())
+	server := websocket.NewServer(port, getSecret())
 
 	// Track connection state
 	var connected bool

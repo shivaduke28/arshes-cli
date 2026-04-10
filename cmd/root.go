@@ -18,8 +18,8 @@ func getVersion() string {
 	return "dev"
 }
 
-// GetSecret returns the secret from the flag or ARSHES_SECRET env var.
-func GetSecret() string {
+// getSecret returns the secret from the flag or ARSHES_SECRET env var.
+func getSecret() string {
 	if secret != "" {
 		return secret
 	}

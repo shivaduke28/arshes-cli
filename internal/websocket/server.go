@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -82,9 +83,11 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := r.RemoteAddr
 	s.logger.Printf("Received connection request from %s", remoteAddr)
 
-	// Verify secret if configured
+	// Verify secret if configured.
+	// Note: Do not log r.URL as it contains the secret query parameter.
 	if s.secret != "" {
-		if r.URL.Query().Get("secret") != s.secret {
+		provided := r.URL.Query().Get("secret")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.secret)) != 1 {
 			s.logger.Printf("Rejected connection from %s: invalid secret", remoteAddr)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return

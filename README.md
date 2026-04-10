@@ -40,6 +40,8 @@ If no file is specified, a timestamped file (e.g., `shader_20260125200800.slang`
 2. Enter the server address (e.g., `192.168.1.5:10080`) and connect
    - If `--secret` is set, the client must connect with `?secret=<value>` query parameter
 
+> **Note:** The secret is passed as a URL query parameter. Always use `wss://` (TLS) for remote connections to prevent the secret from being exposed in transit.
+
 Once connected, saving the shader file on your PC automatically sends it to iPhone for compilation and preview.
 
 ### Flags
@@ -64,6 +66,8 @@ arshes mcp --port 9000
 arshes mcp --transport http
 
 # With secret authentication (recommended for remote deployment)
+arshes mcp --transport http --secret mysecret
+# Or via environment variable
 ARSHES_SECRET=mysecret arshes mcp --transport http
 ```
 
