@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -106,10 +108,29 @@ func runMcpStdio(logger *log.Logger, wsServer *websocket.Server, mcpSrv *mcpserv
 	return nil
 }
 
+// bearerAuthMiddleware wraps an http.Handler and requires a valid Authorization: Bearer <secret> header.
+func bearerAuthMiddleware(secret string, logger *log.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if auth == token || subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+			logger.Printf("Rejected MCP request from %s: invalid authorization", r.RemoteAddr)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func runMcpHTTP(logger *log.Logger, wsServer *websocket.Server, mcpSrv *mcpserver.Server, wsAddr string) error {
 	// Create a shared HTTP server with both MCP and WebSocket handlers
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", mcpSrv.Handler())
+	secret := getSecret()
+	if secret != "" {
+		mux.Handle("/mcp", bearerAuthMiddleware(secret, logger, mcpSrv.Handler()))
+	} else {
+		mux.Handle("/mcp", mcpSrv.Handler())
+	}
 	mux.HandleFunc("/", wsServer.HandleConnection)
 
 	httpServer := &http.Server{
