@@ -18,12 +18,22 @@ func getVersion() string {
 	return "dev"
 }
 
+const minSecretLength = 8
+
 // getSecret returns the secret from the flag or ARSHES_SECRET env var.
 func getSecret() string {
 	if secret != "" {
 		return secret
 	}
 	return os.Getenv("ARSHES_SECRET")
+}
+
+// warnWeakSecret logs a warning if the secret is set but too short.
+func warnWeakSecret(logger interface{ Printf(string, ...any) }) {
+	s := getSecret()
+	if s != "" && len(s) < minSecretLength {
+		logger.Printf("WARNING: secret is shorter than %d characters, consider using a stronger secret", minSecretLength)
+	}
 }
 
 var rootCmd = &cobra.Command{

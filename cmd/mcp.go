@@ -41,6 +41,7 @@ func init() {
 
 func runMcp(cmd *cobra.Command, args []string) error {
 	logger := log.New(os.Stderr, "[arshes-mcp] ", log.LstdFlags)
+	warnWeakSecret(logger)
 
 	// Create WebSocket server
 	wsServer := websocket.NewServer(port, getSecret())
@@ -115,6 +116,7 @@ func bearerAuthMiddleware(secret string, logger *log.Logger, next http.Handler) 
 		token := strings.TrimPrefix(auth, "Bearer ")
 		if auth == token || subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
 			logger.Printf("Rejected MCP request from %s: invalid authorization", r.RemoteAddr)
+			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
