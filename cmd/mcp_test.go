@@ -35,8 +35,23 @@ func TestBearerAuthMiddleware(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
+			name:       "Basic scheme rejected",
+			authHeader: "Basic test-secret-token",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
 			name:       "correct token",
 			authHeader: "Bearer test-secret-token",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "correct token with lowercase bearer",
+			authHeader: "bearer test-secret-token",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "correct token with uppercase BEARER",
+			authHeader: "BEARER test-secret-token",
 			wantStatus: http.StatusOK,
 		},
 	}

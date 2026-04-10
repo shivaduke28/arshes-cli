@@ -113,8 +113,15 @@ func runMcpStdio(logger *log.Logger, wsServer *websocket.Server, mcpSrv *mcpserv
 func bearerAuthMiddleware(secret string, logger *log.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
-		token := strings.TrimPrefix(auth, "Bearer ")
-		if auth == token || subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+		// RFC 7235: auth scheme is case-insensitive
+		if len(auth) <= len("Bearer ") || !strings.EqualFold(auth[:len("Bearer ")], "Bearer ") {
+			logger.Printf("Rejected MCP request from %s: invalid authorization", r.RemoteAddr)
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		token := auth[len("Bearer "):]
+		if subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
 			logger.Printf("Rejected MCP request from %s: invalid authorization", r.RemoteAddr)
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
