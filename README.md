@@ -38,6 +38,7 @@ If no file is specified, a timestamped file (e.g., `shader_20260125200800.slang`
 
 1. Open the Remote Editor feature in the Arshes iOS app
 2. Enter the server address (e.g., `192.168.1.5:10080`) and connect
+   - If `--secret` is set, the client must connect with `?secret=<value>` query parameter
 
 Once connected, saving the shader file on your PC automatically sends it to iPhone for compilation and preview.
 
@@ -46,6 +47,7 @@ Once connected, saving the shader file on your PC automatically sends it to iPho
 | Flag | Description |
 |------|-------------|
 | `-p, --port int` | Server port (default: 10080) |
+| `--secret string` | Secret token for WebSocket authentication (can also be set via `ARSHES_SECRET` env var) |
 | `--log` | Enable logging to `arshes.log` |
 
 ## MCP
@@ -60,6 +62,9 @@ arshes mcp --port 9000
 
 # Use Streamable HTTP transport (for remote deployment)
 arshes mcp --transport http
+
+# With secret authentication (recommended for remote deployment)
+ARSHES_SECRET=mysecret arshes mcp --transport http
 ```
 
 ### Transport Modes
