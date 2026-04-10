@@ -47,7 +47,7 @@ func NewServer(port int) *Server {
 // Start starts the WebSocket server and blocks until a client connects
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleConnection)
+	mux.HandleFunc("/", s.HandleConnection)
 
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.port),
@@ -74,7 +74,8 @@ func GetLocalIP() (string, error) {
 	return "", fmt.Errorf("no local IP found")
 }
 
-func (s *Server) handleConnection(w http.ResponseWriter, r *http.Request) {
+// HandleConnection handles a WebSocket upgrade request.
+func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := r.RemoteAddr
 	s.logger.Printf("Received connection request from %s", remoteAddr)
 

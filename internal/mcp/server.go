@@ -17,11 +17,11 @@ import (
 
 const compileTimeout = 30 * time.Second
 
-// Server wraps a WebSocket server and exposes MCP tools via stdio.
+// Server wraps a WebSocket server and exposes MCP tools.
 type Server struct {
-	ws          *ws.Server
-	mcpServer   *server.MCPServer
-	stdioServer *server.StdioServer
+	ws         *ws.Server
+	mcpServer  *server.MCPServer
+	httpServer *server.StreamableHTTPServer
 
 	// compileResult channel for waiting on compile results
 	compileCh chan compileResult
@@ -92,7 +92,7 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	)
 
 	s.mcpServer = mcpServer
-	s.stdioServer = server.NewStdioServer(mcpServer)
+	s.httpServer = server.NewStreamableHTTPServer(mcpServer)
 
 	// Register WebSocket callbacks
 	s.ws.OnCompileResult(func(success bool, errorMsg *string, image *string) {
@@ -121,9 +121,20 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	return s
 }
 
-// Listen starts the MCP stdio server.
-func (s *Server) Listen(ctx context.Context) error {
-	return s.stdioServer.Listen(ctx, os.Stdin, os.Stdout)
+// ListenStdio starts the MCP server using stdio transport.
+func (s *Server) ListenStdio(ctx context.Context) error {
+	stdioServer := server.NewStdioServer(s.mcpServer)
+	return stdioServer.Listen(ctx, os.Stdin, os.Stdout)
+}
+
+// Handler returns the MCP Streamable HTTP handler.
+func (s *Server) Handler() *server.StreamableHTTPServer {
+	return s.httpServer
+}
+
+// Shutdown gracefully shuts down the MCP Streamable HTTP server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
 }
 
 func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
