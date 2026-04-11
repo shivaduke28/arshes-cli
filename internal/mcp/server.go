@@ -156,8 +156,14 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 		return mcp.NewToolResultError("either 'code' or 'file' argument is required"), nil
 	}
 
+	// Use a single timeout context for the entire operation (connection wait + compile)
+	ctx, cancel := context.WithTimeout(ctx, compileTimeout)
+	defer cancel()
+
 	if !s.ws.IsConnected() {
-		return mcp.NewToolResultError("no iPhone client connected"), nil
+		if !s.ws.WaitForConnection(ctx, compileTimeout) {
+			return mcp.NewToolResultError("no iPhone client connected within timeout"), nil
+		}
 	}
 
 	// Drain any stale compile result
@@ -200,10 +206,8 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 			errMsg = *result.ErrorMessage
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("compilation failed: %s", errMsg)), nil
-	case <-time.After(compileTimeout):
-		return mcp.NewToolResultError("compile timeout: no response from iPhone within 30 seconds"), nil
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return mcp.NewToolResultError("compile timeout: no response from iPhone within 30 seconds"), nil
 	}
 }
 
