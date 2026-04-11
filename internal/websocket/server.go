@@ -311,9 +311,9 @@ func (s *Server) IsConnected() bool {
 	return s.ConnectionCount() > 0
 }
 
-// WaitForConnection blocks until a client connects or the timeout/context is cancelled.
-// Returns true if a client is connected, false on timeout or cancellation.
-func (s *Server) WaitForConnection(ctx context.Context, timeout time.Duration) bool {
+// WaitForConnection blocks until a client connects or the context is cancelled.
+// Returns true if a client is connected, false on cancellation.
+func (s *Server) WaitForConnection(ctx context.Context) bool {
 	s.mu.Lock()
 	if len(s.connections) > 0 {
 		s.mu.Unlock()
@@ -323,15 +323,9 @@ func (s *Server) WaitForConnection(ctx context.Context, timeout time.Duration) b
 	s.connectWaiters = append(s.connectWaiters, ch)
 	s.mu.Unlock()
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
 	select {
 	case <-ch:
 		return true
-	case <-timer.C:
-		s.removeWaiter(ch)
-		return false
 	case <-ctx.Done():
 		s.removeWaiter(ch)
 		return false

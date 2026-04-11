@@ -161,7 +161,7 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 	defer cancel()
 
 	if !s.ws.IsConnected() {
-		if !s.ws.WaitForConnection(ctx, compileTimeout) {
+		if !s.ws.WaitForConnection(ctx) {
 			return mcp.NewToolResultError("no iPhone client connected within timeout"), nil
 		}
 	}
