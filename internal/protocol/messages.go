@@ -39,7 +39,7 @@ type SendShaderPayload struct {
 	Code string `json:"code"`
 }
 
-// NewHelloResultMessage creates a helloResult message for successful handshake
+// NewHelloResultMessage creates a helloResult message
 func NewHelloResultMessage(code string, protocolVersion int, message string) ServerMessage {
 	payload := HelloResultPayload{
 		Code: code,

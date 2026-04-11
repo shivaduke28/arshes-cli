@@ -148,26 +148,28 @@ func (s *Server) performHandshake(conn *websocket.Conn, remoteAddr string) bool 
 	}
 	if err := json.Unmarshal(message, &msg); err != nil {
 		s.logger.Printf("Failed to parse hello from %s: %v", remoteAddr, err)
+		s.rejectHandshake(conn, "bad_request", "invalid message format")
 		return false
 	}
 
 	if msg.Type != "hello" {
 		s.logger.Printf("Expected hello from %s, got %s", remoteAddr, msg.Type)
+		s.rejectHandshake(conn, "bad_request", "expected hello message")
 		return false
 	}
 
 	var hello protocol.HelloPayload
 	if err := json.Unmarshal(msg.Payload, &hello); err != nil {
 		s.logger.Printf("Failed to parse hello payload from %s: %v", remoteAddr, err)
+		s.rejectHandshake(conn, "bad_request", "invalid hello payload")
 		return false
 	}
 
 	// Check protocol version
 	if hello.ProtocolVersion != protocol.ProtocolVersion {
 		s.logger.Printf("Unsupported protocol version from %s: %d", remoteAddr, hello.ProtocolVersion)
-		result := protocol.NewHelloResultMessage("unsupported_version", 0,
+		s.rejectHandshake(conn, "unsupported_version",
 			fmt.Sprintf("server supports protocol version %d", protocol.ProtocolVersion))
-		s.writeMessage(conn, result)
 		return false
 	}
 
@@ -175,8 +177,7 @@ func (s *Server) performHandshake(conn *websocket.Conn, remoteAddr string) bool 
 	if s.token != "" {
 		if subtle.ConstantTimeCompare([]byte(hello.Token), []byte(s.token)) != 1 {
 			s.logger.Printf("Rejected connection from %s: invalid token", remoteAddr)
-			result := protocol.NewHelloResultMessage("unauthorized", 0, "invalid token")
-			s.writeMessage(conn, result)
+			s.rejectHandshake(conn, "unauthorized", "invalid token")
 			return false
 		}
 	}
@@ -193,6 +194,15 @@ func (s *Server) performHandshake(conn *websocket.Conn, remoteAddr string) bool 
 
 	s.logger.Printf("Handshake successful with %s (protocol v%d)", remoteAddr, hello.ProtocolVersion)
 	return true
+}
+
+// rejectHandshake sends a helloResult error message to the client.
+// Logs a warning if the message cannot be sent.
+func (s *Server) rejectHandshake(conn *websocket.Conn, code string, message string) {
+	result := protocol.NewHelloResultMessage(code, 0, message)
+	if err := s.writeMessage(conn, result); err != nil {
+		s.logger.Printf("Failed to send helloResult error (%s): %v", code, err)
+	}
 }
 
 // writeMessage marshals and sends a ServerMessage to a connection.
