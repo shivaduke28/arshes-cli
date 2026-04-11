@@ -24,16 +24,17 @@ var upgrader = websocket.Upgrader{
 
 // Server represents a WebSocket server that supports multiple connections
 type Server struct {
-	port         int
-	token        string
-	connections  map[*websocket.Conn]string // conn -> remoteAddr
-	connWriteMu map[*websocket.Conn]*sync.Mutex
-	mu           sync.RWMutex
-	handlers     map[string]func(json.RawMessage)
-	onConnect    func(remoteAddr string)
-	onDisconnect func(remoteAddr string)
-	httpServer   *http.Server
-	logger       *log.Logger
+	port           int
+	token          string
+	connections    map[*websocket.Conn]string // conn -> remoteAddr
+	connWriteMu   map[*websocket.Conn]*sync.Mutex
+	mu             sync.RWMutex
+	handlers       map[string]func(json.RawMessage)
+	onConnect      func(remoteAddr string)
+	onDisconnect   func(remoteAddr string)
+	connectWaiters []chan struct{}
+	httpServer     *http.Server
+	logger         *log.Logger
 }
 
 // NewServer creates a new WebSocket server.
@@ -97,14 +98,20 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add to connections map
+	// Add to connections map and notify waiters
 	s.mu.Lock()
 	s.connections[conn] = remoteAddr
 	s.connWriteMu[conn] = &sync.Mutex{}
 	count := len(s.connections)
+	waiters := s.connectWaiters
+	s.connectWaiters = nil
 	s.mu.Unlock()
 
 	s.logger.Printf("Active connections: %d", count)
+
+	for _, ch := range waiters {
+		close(ch)
+	}
 
 	if s.onConnect != nil {
 		s.onConnect(remoteAddr)
@@ -304,10 +311,47 @@ func (s *Server) IsConnected() bool {
 	return s.ConnectionCount() > 0
 }
 
+// WaitForConnection blocks until a client connects or the context is cancelled.
+// Returns true if a client is connected, false on cancellation.
+func (s *Server) WaitForConnection(ctx context.Context) bool {
+	s.mu.Lock()
+	if len(s.connections) > 0 {
+		s.mu.Unlock()
+		return true
+	}
+	ch := make(chan struct{})
+	s.connectWaiters = append(s.connectWaiters, ch)
+	s.mu.Unlock()
+
+	select {
+	case <-ch:
+		return true
+	case <-ctx.Done():
+		s.removeWaiter(ch)
+		return false
+	}
+}
+
+// removeWaiter removes a waiter channel from the connectWaiters slice.
+func (s *Server) removeWaiter(ch chan struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, w := range s.connectWaiters {
+		if w == ch {
+			s.connectWaiters = append(s.connectWaiters[:i], s.connectWaiters[i+1:]...)
+			return
+		}
+	}
+}
+
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
-	// Close all WebSocket connections
+	// Close all WebSocket connections and notify waiters
 	s.mu.Lock()
+	for _, ch := range s.connectWaiters {
+		close(ch)
+	}
+	s.connectWaiters = nil
 	for conn := range s.connections {
 		if wmu, ok := s.connWriteMu[conn]; ok {
 			wmu.Lock()
