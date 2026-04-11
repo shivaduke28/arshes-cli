@@ -2,6 +2,8 @@
 
 A CLI tool that works with the [Arshes](https://x.com/arshes_net) iOS app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
 
+Arshes CLI implements the [Arshes Remote Editor Protocol v1](https://arshes.pages.dev/protocol) for communication with the Arshes iOS app over WebSocket.
+
 ## Installation
 
 ```bash
@@ -38,9 +40,8 @@ If no file is specified, a timestamped file (e.g., `shader_20260125200800.slang`
 
 1. Open the Remote Editor feature in the Arshes iOS app
 2. Enter the server address (e.g., `192.168.1.5:10080`) and connect
-   - If `--secret` is set, the client must connect with `?secret=<value>` query parameter
 
-> **Note:** The secret is passed as a URL query parameter. Always use `wss://` (TLS) for remote connections to prevent the secret from being exposed in transit.
+To restrict access, set `--token` (or `ARSHES_TOKEN` env var) on the server and configure the same token in the Arshes app. The token is verified during the WebSocket handshake.
 
 Once connected, saving the shader file on your PC automatically sends it to iPhone for compilation and preview.
 
@@ -49,7 +50,7 @@ Once connected, saving the shader file on your PC automatically sends it to iPho
 | Flag | Description |
 |------|-------------|
 | `-p, --port int` | Server port (default: 10080) |
-| `--secret string` | Secret token for WebSocket authentication (can also be set via `ARSHES_SECRET` env var) |
+| `--token string` | Authentication token for client connections (can also be set via `ARSHES_TOKEN` env var) |
 | `--log` | Enable logging to `arshes.log` |
 
 ## MCP
@@ -65,10 +66,10 @@ arshes mcp --port 9000
 # Use Streamable HTTP transport (for remote deployment)
 arshes mcp --transport http
 
-# With secret authentication (recommended for remote deployment)
-arshes mcp --transport http --secret mysecret
+# With token authentication (recommended for remote deployment)
+arshes mcp --transport http --token mytoken
 # Or via environment variable
-ARSHES_SECRET=mysecret arshes mcp --transport http
+ARSHES_TOKEN=mytoken arshes mcp --transport http
 ```
 
 ### Transport Modes
@@ -121,7 +122,7 @@ Start the server first by `arshes mcp --transport http`, then add to your `.mcp.
 
 **Streamable HTTP with authentication:**
 
-When `--secret` is set, the MCP endpoint requires `Authorization: Bearer <secret>` header:
+When `--token` is set, the MCP endpoint requires `Authorization: Bearer <token>` header:
 
 ```json
 {
@@ -130,7 +131,7 @@ When `--secret` is set, the MCP endpoint requires `Authorization: Bearer <secret
       "type": "http",
       "url": "https://your-app.fly.dev/mcp",
       "headers": {
-        "Authorization": "Bearer mysecret"
+        "Authorization": "Bearer mytoken"
       }
     }
   }
