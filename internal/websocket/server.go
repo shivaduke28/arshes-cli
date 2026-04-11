@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/shivaduke28/arshes-cli/internal/protocol"
@@ -24,7 +25,7 @@ var upgrader = websocket.Upgrader{
 // Server represents a WebSocket server that supports multiple connections
 type Server struct {
 	port         int
-	secret       string
+	token        string
 	connections  map[*websocket.Conn]string // conn -> remoteAddr
 	connWriteMu map[*websocket.Conn]*sync.Mutex
 	mu           sync.RWMutex
@@ -36,11 +37,11 @@ type Server struct {
 }
 
 // NewServer creates a new WebSocket server.
-// If secret is non-empty, clients must provide it via the "secret" query parameter to connect.
-func NewServer(port int, secret string) *Server {
+// If token is non-empty, clients must provide it via the hello handshake message to connect.
+func NewServer(port int, token string) *Server {
 	return &Server{
 		port:        port,
-		secret:      secret,
+		token:       token,
 		connections: make(map[*websocket.Conn]string),
 		connWriteMu: make(map[*websocket.Conn]*sync.Mutex),
 		handlers:    make(map[string]func(json.RawMessage)),
@@ -83,23 +84,18 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := r.RemoteAddr
 	s.logger.Printf("Received connection request from %s", remoteAddr)
 
-	// Verify secret if configured.
-	// Note: Do not log r.URL as it contains the secret query parameter.
-	if s.secret != "" {
-		provided := r.URL.Query().Get("secret")
-		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.secret)) != 1 {
-			s.logger.Printf("Rejected connection from %s: invalid secret", remoteAddr)
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-	}
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
 	s.logger.Printf("WebSocket upgrade successful for %s", remoteAddr)
+
+	// Perform hello handshake
+	if !s.performHandshake(conn, remoteAddr) {
+		conn.Close()
+		return
+	}
 
 	// Add to connections map
 	s.mu.Lock()
@@ -131,8 +127,97 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SendUpdateShader sends an updateShader message to all connected clients
-func (s *Server) SendUpdateShader(code string) error {
+const handshakeTimeout = 10 * time.Second
+
+// performHandshake performs the hello/helloResult handshake with a client.
+// Returns true if handshake succeeded, false otherwise.
+func (s *Server) performHandshake(conn *websocket.Conn, remoteAddr string) bool {
+	// Set deadline for handshake; reset after success
+	conn.SetReadDeadline(time.Now().Add(handshakeTimeout))
+
+	// Read the first message, which must be hello
+	_, message, err := conn.ReadMessage()
+	if err != nil {
+		s.logger.Printf("Failed to read hello from %s: %v", remoteAddr, err)
+		return false
+	}
+
+	var msg struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(message, &msg); err != nil {
+		s.logger.Printf("Failed to parse hello from %s: %v", remoteAddr, err)
+		s.rejectHandshake(conn, "bad_request", "invalid message format")
+		return false
+	}
+
+	if msg.Type != "hello" {
+		s.logger.Printf("Expected hello from %s, got %s", remoteAddr, msg.Type)
+		s.rejectHandshake(conn, "bad_request", "expected hello message")
+		return false
+	}
+
+	var hello protocol.HelloPayload
+	if err := json.Unmarshal(msg.Payload, &hello); err != nil {
+		s.logger.Printf("Failed to parse hello payload from %s: %v", remoteAddr, err)
+		s.rejectHandshake(conn, "bad_request", "invalid hello payload")
+		return false
+	}
+
+	// Check protocol version
+	if hello.ProtocolVersion != protocol.ProtocolVersion {
+		s.logger.Printf("Unsupported protocol version from %s: %d", remoteAddr, hello.ProtocolVersion)
+		s.rejectHandshake(conn, "unsupported_version",
+			fmt.Sprintf("server supports protocol version %d", protocol.ProtocolVersion))
+		return false
+	}
+
+	// Check token (if configured)
+	if s.token != "" {
+		if subtle.ConstantTimeCompare([]byte(hello.Token), []byte(s.token)) != 1 {
+			s.logger.Printf("Rejected connection from %s: invalid token", remoteAddr)
+			s.rejectHandshake(conn, "unauthorized", "invalid token")
+			return false
+		}
+	}
+
+	// Handshake success
+	result := protocol.NewHelloResultMessage("ok", protocol.ProtocolVersion, "")
+	if err := s.writeMessage(conn, result); err != nil {
+		s.logger.Printf("Failed to send helloResult to %s: %v", remoteAddr, err)
+		return false
+	}
+
+	// Clear read deadline for normal message processing
+	conn.SetReadDeadline(time.Time{})
+
+	s.logger.Printf("Handshake successful with %s (protocol v%d)", remoteAddr, hello.ProtocolVersion)
+	return true
+}
+
+// rejectHandshake sends a helloResult error message to the client.
+// Logs a warning if the message cannot be sent.
+func (s *Server) rejectHandshake(conn *websocket.Conn, code string, message string) {
+	result := protocol.NewHelloResultMessage(code, 0, message)
+	if err := s.writeMessage(conn, result); err != nil {
+		s.logger.Printf("Failed to send helloResult error (%s): %v", code, err)
+	}
+}
+
+// writeMessage marshals and sends a ServerMessage to a connection.
+// This is only used during handshake, before the connection is added to the connections map,
+// so no write mutex is needed.
+func (s *Server) writeMessage(conn *websocket.Conn, msg protocol.ServerMessage) error {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+	return conn.WriteMessage(websocket.TextMessage, data)
+}
+
+// SendCompileShader sends a compileShader message to all connected clients
+func (s *Server) SendCompileShader(code string, image bool) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -140,7 +225,7 @@ func (s *Server) SendUpdateShader(code string) error {
 		return fmt.Errorf("no clients connected")
 	}
 
-	msg := protocol.NewUpdateShaderMessage(code)
+	msg := protocol.NewCompileShaderMessage(code, image)
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
@@ -167,10 +252,10 @@ func (s *Server) SendUpdateShader(code string) error {
 	return nil
 }
 
-// OnSyncShader registers a handler for syncShader messages
-func (s *Server) OnSyncShader(handler func(code string)) {
-	s.handlers["syncShader"] = func(payload json.RawMessage) {
-		var p protocol.SyncShaderPayload
+// OnSendShader registers a handler for sendShader messages
+func (s *Server) OnSendShader(handler func(code string)) {
+	s.handlers["sendShader"] = func(payload json.RawMessage) {
+		var p protocol.SendShaderPayload
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return
 		}
@@ -181,11 +266,8 @@ func (s *Server) OnSyncShader(handler func(code string)) {
 // OnSyncShaderSpec registers a handler for syncShaderSpec messages
 func (s *Server) OnSyncShaderSpec(handler func(spec json.RawMessage)) {
 	s.handlers["syncShaderSpec"] = func(payload json.RawMessage) {
-		var p protocol.SyncShaderSpecPayload
-		if err := json.Unmarshal(payload, &p); err != nil {
-			return
-		}
-		handler(p.Spec)
+		// Pass the entire payload as raw JSON for internal storage
+		handler(payload)
 	}
 }
 
@@ -196,7 +278,7 @@ func (s *Server) OnCompileResult(handler func(success bool, errorMsg *string, im
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return
 		}
-		handler(p.Success, p.Error, p.Image)
+		handler(p.Success, p.ErrorMessage, p.Image)
 	}
 }
 

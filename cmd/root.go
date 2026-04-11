@@ -9,7 +9,7 @@ import (
 )
 
 var port int
-var secret string
+var token string
 
 func getVersion() string {
 	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" {
@@ -18,21 +18,21 @@ func getVersion() string {
 	return "dev"
 }
 
-const minSecretLength = 8
+const minTokenLength = 8
 
-// getSecret returns the secret from the flag or ARSHES_SECRET env var.
-func getSecret() string {
-	if secret != "" {
-		return secret
+// getToken returns the token from the flag or ARSHES_TOKEN env var.
+func getToken() string {
+	if token != "" {
+		return token
 	}
-	return os.Getenv("ARSHES_SECRET")
+	return os.Getenv("ARSHES_TOKEN")
 }
 
-// warnWeakSecret logs a warning if the secret is set but too short.
-func warnWeakSecret(logger interface{ Printf(string, ...any) }) {
-	s := getSecret()
-	if s != "" && len(s) < minSecretLength {
-		logger.Printf("WARNING: secret is shorter than %d characters, consider using a stronger secret", minSecretLength)
+// warnWeakToken logs a warning if the token is set but too short.
+func warnWeakToken(logger interface{ Printf(string, ...any) }) {
+	t := getToken()
+	if t != "" && len(t) < minTokenLength {
+		logger.Printf("WARNING: token is shorter than %d characters, consider using a stronger token", minTokenLength)
 	}
 }
 
@@ -57,5 +57,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().IntVarP(&port, "port", "p", 10080, "Server port")
-	rootCmd.PersistentFlags().StringVar(&secret, "secret", "", "Secret token for WebSocket authentication (can also be set via ARSHES_SECRET env var)")
+	rootCmd.PersistentFlags().StringVar(&token, "token", "", "Authentication token for client connections (can also be set via ARSHES_TOKEN env var)")
 }

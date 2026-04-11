@@ -41,10 +41,10 @@ func init() {
 
 func runMcp(cmd *cobra.Command, args []string) error {
 	logger := log.New(os.Stderr, "[arshes-mcp] ", log.LstdFlags)
-	warnWeakSecret(logger)
+	warnWeakToken(logger)
 
 	// Create WebSocket server
-	wsServer := websocket.NewServer(port, getSecret())
+	wsServer := websocket.NewServer(port, getToken())
 
 	wsServer.OnConnect(func(remoteAddr string) {
 		logger.Printf("iPhone connected: %s", remoteAddr)
@@ -109,8 +109,8 @@ func runMcpStdio(logger *log.Logger, wsServer *websocket.Server, mcpSrv *mcpserv
 	return nil
 }
 
-// bearerAuthMiddleware wraps an http.Handler and requires a valid Authorization: Bearer <secret> header.
-func bearerAuthMiddleware(secret string, logger *log.Logger, next http.Handler) http.Handler {
+// bearerAuthMiddleware wraps an http.Handler and requires a valid Authorization: Bearer <token> header.
+func bearerAuthMiddleware(expectedToken string, logger *log.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		// RFC 7235: auth scheme is case-insensitive
@@ -120,8 +120,8 @@ func bearerAuthMiddleware(secret string, logger *log.Logger, next http.Handler) 
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		token := auth[len("Bearer "):]
-		if subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+		provided := auth[len("Bearer "):]
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(expectedToken)) != 1 {
 			logger.Printf("Rejected MCP request from %s: invalid authorization", r.RemoteAddr)
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -134,9 +134,9 @@ func bearerAuthMiddleware(secret string, logger *log.Logger, next http.Handler) 
 func runMcpHTTP(logger *log.Logger, wsServer *websocket.Server, mcpSrv *mcpserver.Server, wsAddr string) error {
 	// Create a shared HTTP server with both MCP and WebSocket handlers
 	mux := http.NewServeMux()
-	secret := getSecret()
-	if secret != "" {
-		mux.Handle("/mcp", bearerAuthMiddleware(secret, logger, mcpSrv.Handler()))
+	tok := getToken()
+	if tok != "" {
+		mux.Handle("/mcp", bearerAuthMiddleware(tok, logger, mcpSrv.Handler()))
 	} else {
 		mux.Handle("/mcp", mcpSrv.Handler())
 	}

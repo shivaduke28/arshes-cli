@@ -29,7 +29,7 @@ type Server struct {
 
 	// lastSyncedShader stores the latest shader code received from iPhone
 	lastSyncedShader string
-	// lastSyncedSpec stores the latest shader spec received from iPhone
+	// lastSyncedSpec stores the latest shader spec received from iPhone (raw syncShaderSpec payload)
 	lastSyncedSpec json.RawMessage
 	syncMu         sync.RWMutex
 
@@ -38,9 +38,9 @@ type Server struct {
 }
 
 type compileResult struct {
-	Success bool
-	Error   *string
-	Image   *string
+	Success      bool
+	ErrorMessage *string
+	Image        *string
 }
 
 // NewServer creates a new MCP server that bridges to the given WebSocket server.
@@ -100,13 +100,13 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 		defer s.mu.Unlock()
 
 		select {
-		case s.compileCh <- compileResult{Success: success, Error: errorMsg, Image: image}:
+		case s.compileCh <- compileResult{Success: success, ErrorMessage: errorMsg, Image: image}:
 		default:
 			// Drop if no one is waiting
 		}
 	})
 
-	s.ws.OnSyncShader(func(code string) {
+	s.ws.OnSendShader(func(code string) {
 		s.syncMu.Lock()
 		defer s.syncMu.Unlock()
 		s.lastSyncedShader = code
@@ -169,7 +169,8 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 	s.mu.Unlock()
 
 	// Send shader to iPhone
-	if err := s.ws.SendUpdateShader(code); err != nil {
+	requestImage := imagePath != ""
+	if err := s.ws.SendCompileShader(code, requestImage); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to send shader: %v", err)), nil
 	}
 
@@ -195,8 +196,8 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 			return mcp.NewToolResultText("compilation successful"), nil
 		}
 		errMsg := "unknown error"
-		if result.Error != nil {
-			errMsg = *result.Error
+		if result.ErrorMessage != nil {
+			errMsg = *result.ErrorMessage
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("compilation failed: %s", errMsg)), nil
 	case <-time.After(compileTimeout):

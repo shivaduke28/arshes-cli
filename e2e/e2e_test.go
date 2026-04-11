@@ -33,7 +33,7 @@ func TestE2EScenario(t *testing.T) {
 	})
 
 	syncReceived := make(chan string, 1)
-	server.OnSyncShader(func(code string) {
+	server.OnSendShader(func(code string) {
 		// Write to file (simulating serve.go behavior)
 		os.WriteFile(shaderFile, []byte(code), 0644)
 		syncReceived <- code
@@ -42,8 +42,8 @@ func TestE2EScenario(t *testing.T) {
 	go server.Start()
 	t.Log("1. Server started")
 
-	// 2. Client connects
-	conn := connectWebSocket(t, port)
+	// 2. Client connects and performs handshake
+	conn := connectAndHandshake(t, port, "")
 	select {
 	case <-connected:
 		t.Log("2. Client connected")
@@ -51,9 +51,9 @@ func TestE2EScenario(t *testing.T) {
 		t.Fatal("timeout waiting for connection")
 	}
 
-	// 3. Client sends syncShader -> file is updated
+	// 3. Client sends sendShader -> file is updated
 	syncCode := "// synced from client"
-	sendMessage(t, conn, "syncShader", map[string]string{"code": syncCode})
+	sendMessage(t, conn, "sendShader", map[string]string{"code": syncCode})
 
 	select {
 	case <-syncReceived:
@@ -61,23 +61,23 @@ func TestE2EScenario(t *testing.T) {
 		if string(content) != syncCode {
 			t.Errorf("file content mismatch: expected '%s', got '%s'", syncCode, string(content))
 		}
-		t.Log("3. syncShader received, file updated")
+		t.Log("3. sendShader received, file updated")
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for syncShader")
+		t.Fatal("timeout waiting for sendShader")
 	}
 
 	// 4. File updated -> sent to client
 	updatedCode := "// updated from file"
 	os.WriteFile(shaderFile, []byte(updatedCode), 0644)
 	content, _ := os.ReadFile(shaderFile)
-	server.SendUpdateShader(string(content))
+	server.SendCompileShader(string(content), false)
 
 	msg := readMessage(t, conn, 2*time.Second)
-	if msg.Type != "updateShader" {
-		t.Errorf("expected updateShader, got %s", msg.Type)
+	if msg.Type != "compileShader" {
+		t.Errorf("expected compileShader, got %s", msg.Type)
 	}
 	payloadBytes, _ := json.Marshal(msg.Payload)
-	var payload protocol.UpdateShaderPayload
+	var payload protocol.CompileShaderPayload
 	json.Unmarshal(payloadBytes, &payload)
 	if payload.Code != updatedCode {
 		t.Errorf("payload mismatch: expected '%s', got '%s'", updatedCode, payload.Code)
@@ -113,25 +113,58 @@ func TestSecretAuthentication(t *testing.T) {
 		server.Shutdown(ctx)
 	}()
 
-	// Connection without secret should fail
-	url := fmt.Sprintf("ws://localhost:%d/", port)
-	_, _, err := websocket.DefaultDialer.Dial(url, nil)
-	if err == nil {
-		t.Fatal("expected connection without secret to be rejected")
+	// Connection with wrong token should fail (helloResult with "unauthorized")
+	conn := connectWebSocket(t, port)
+	sendMessage(t, conn, "hello", map[string]interface{}{
+		"protocolVersion": protocol.ProtocolVersion,
+		"token":           "wrong-secret",
+	})
+	msg := readMessage(t, conn, 2*time.Second)
+	if msg.Type != "helloResult" {
+		t.Fatalf("expected helloResult, got %s", msg.Type)
 	}
-
-	// Connection with wrong secret should fail
-	urlWrong := fmt.Sprintf("ws://localhost:%d/?secret=wrong", port)
-	_, _, err = websocket.DefaultDialer.Dial(urlWrong, nil)
-	if err == nil {
-		t.Fatal("expected connection with wrong secret to be rejected")
+	payloadBytes, _ := json.Marshal(msg.Payload)
+	var result protocol.HelloResultPayload
+	json.Unmarshal(payloadBytes, &result)
+	if result.Code != "unauthorized" {
+		t.Errorf("expected unauthorized, got %s", result.Code)
 	}
+	conn.Close()
 
-	// Connection with correct secret should succeed
-	urlCorrect := fmt.Sprintf("ws://localhost:%d/?secret=test-secret", port)
-	conn, _, err := websocket.DefaultDialer.Dial(urlCorrect, nil)
-	if err != nil {
-		t.Fatalf("expected connection with correct secret to succeed: %v", err)
+	// Connection with correct token should succeed
+	conn2 := connectAndHandshake(t, port, "test-secret")
+	if server.ConnectionCount() != 1 {
+		t.Errorf("expected 1 connection, got %d", server.ConnectionCount())
+	}
+	conn2.Close()
+}
+
+func TestUnsupportedProtocolVersion(t *testing.T) {
+	port := getFreePort(t)
+	server := ws.NewServer(port, "")
+
+	go server.Start()
+	time.Sleep(100 * time.Millisecond)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+	}()
+
+	conn := connectWebSocket(t, port)
+	sendMessage(t, conn, "hello", map[string]interface{}{
+		"protocolVersion": 999,
+		"token":           "",
+	})
+	msg := readMessage(t, conn, 2*time.Second)
+	if msg.Type != "helloResult" {
+		t.Fatalf("expected helloResult, got %s", msg.Type)
+	}
+	payloadBytes, _ := json.Marshal(msg.Payload)
+	var result protocol.HelloResultPayload
+	json.Unmarshal(payloadBytes, &result)
+	if result.Code != "unsupported_version" {
+		t.Errorf("expected unsupported_version, got %s", result.Code)
 	}
 	conn.Close()
 }
@@ -163,6 +196,30 @@ func connectWebSocket(t *testing.T, port int) *websocket.Conn {
 	}
 	t.Fatalf("failed to connect: %v", err)
 	return nil
+}
+
+// connectAndHandshake connects to the WebSocket server and performs the hello handshake.
+func connectAndHandshake(t *testing.T, port int, token string) *websocket.Conn {
+	t.Helper()
+	conn := connectWebSocket(t, port)
+
+	sendMessage(t, conn, "hello", map[string]interface{}{
+		"protocolVersion": protocol.ProtocolVersion,
+		"token":           token,
+	})
+
+	msg := readMessage(t, conn, 2*time.Second)
+	if msg.Type != "helloResult" {
+		t.Fatalf("expected helloResult, got %s", msg.Type)
+	}
+	payloadBytes, _ := json.Marshal(msg.Payload)
+	var result protocol.HelloResultPayload
+	json.Unmarshal(payloadBytes, &result)
+	if result.Code != "ok" {
+		t.Fatalf("handshake failed: %s (%s)", result.Code, result.Message)
+	}
+
+	return conn
 }
 
 func readMessage(t *testing.T, conn *websocket.Conn, timeout time.Duration) protocol.ServerMessage {

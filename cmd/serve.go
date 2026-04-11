@@ -34,7 +34,7 @@ func init() {
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
-	warnWeakSecret(log.Default())
+	warnWeakToken(log.Default())
 
 	// Set up log file if enabled
 	var logFile *os.File
@@ -93,7 +93,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create server
-	server := websocket.NewServer(port, getSecret())
+	server := websocket.NewServer(port, getToken())
 
 	// Track connection state
 	var connected bool
@@ -121,7 +121,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}
 	})
 
-	server.OnSyncShader(func(code string) {
+	server.OnSendShader(func(code string) {
 		// Save the current shader from iPhone to the file
 		ignoreMu.Lock()
 		ignoreNextChange = true
@@ -226,7 +226,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 					return
 				}
 
-				if err := server.SendUpdateShader(string(content)); err != nil {
+				if err := server.SendCompileShader(string(content), false); err != nil {
 					logPrint("✗ Failed to send update: %v\n", "\033[31m", err)
 					return
 				}
