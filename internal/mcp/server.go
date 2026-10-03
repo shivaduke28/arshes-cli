@@ -27,9 +27,9 @@ type Server struct {
 	compileCh chan compileResult
 	mu        sync.Mutex
 
-	// lastSyncedShader stores the latest shader code received from iPhone
+	// lastSyncedShader stores the latest shader code received from the device
 	lastSyncedShader string
-	// lastSyncedSpec stores the latest shader spec received from iPhone (raw syncShaderSpec payload)
+	// lastSyncedSpec stores the latest shader spec received from the device (raw syncShaderSpec payload)
 	lastSyncedSpec json.RawMessage
 	syncMu         sync.RWMutex
 
@@ -59,7 +59,7 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	mcpServer.AddTool(
 		mcp.NewTool(
 			"compile_shader",
-			mcp.WithDescription("Send shader code to the connected iPhone for compilation. Returns the compile result. Specify either 'code' or 'file' (file path to read shader from). If both are given, 'file' takes precedence. If 'image' is specified, the rendered image is saved to that path instead of being returned inline."),
+			mcp.WithDescription("Send shader code to the connected device for compilation. Returns the compile result. Specify either 'code' or 'file' (file path to read shader from). If both are given, 'file' takes precedence. If 'image' is specified, the rendered image is saved to that path instead of being returned inline."),
 			mcp.WithString("code", mcp.Description("Slang shader source code")),
 			mcp.WithString("file", mcp.Description("Path to a .slang file to compile")),
 			mcp.WithString("image", mcp.Description("Path to save the rendered image (JPEG). If omitted, image is returned inline as base64.")),
@@ -70,7 +70,7 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	mcpServer.AddTool(
 		mcp.NewTool(
 			"get_status",
-			mcp.WithDescription("Get the connection status and WebSocket server address of the iPhone client."),
+			mcp.WithDescription("Get the connection status and WebSocket server address of the connected Arshes app client."),
 		),
 		s.handleGetStatus,
 	)
@@ -78,7 +78,7 @@ func NewServer(wsServer *ws.Server, wsAddr string) *Server {
 	mcpServer.AddTool(
 		mcp.NewTool(
 			"get_shader",
-			mcp.WithDescription("Get the current shader code from the connected iPhone. Returns the last synced shader code."),
+			mcp.WithDescription("Get the current shader code from the connected device. Returns the last synced shader code."),
 		),
 		s.handleGetShader,
 	)
@@ -162,7 +162,7 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 
 	if !s.ws.IsConnected() {
 		if !s.ws.WaitForConnection(ctx) {
-			return mcp.NewToolResultError("no iPhone client connected within timeout"), nil
+			return mcp.NewToolResultError("no client connected within timeout"), nil
 		}
 	}
 
@@ -174,7 +174,7 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 	}
 	s.mu.Unlock()
 
-	// Send shader to iPhone
+	// Send shader to the device
 	requestImage := imagePath != ""
 	if err := s.ws.SendCompileShader(code, requestImage); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to send shader: %v", err)), nil
@@ -207,7 +207,7 @@ func (s *Server) handleCompileShader(ctx context.Context, request mcp.CallToolRe
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("compilation failed: %s", errMsg)), nil
 	case <-ctx.Done():
-		return mcp.NewToolResultError("compile timeout: no response from iPhone within 30 seconds"), nil
+		return mcp.NewToolResultError("compile timeout: no response from the device within 30 seconds"), nil
 	}
 }
 
@@ -228,7 +228,7 @@ func (s *Server) handleGetShader(ctx context.Context, request mcp.CallToolReques
 	s.syncMu.RUnlock()
 
 	if code == "" {
-		return mcp.NewToolResultText("no shader has been synced from iPhone yet"), nil
+		return mcp.NewToolResultText("no shader has been synced from the device yet"), nil
 	}
 	return mcp.NewToolResultText(code), nil
 }
@@ -249,5 +249,5 @@ func (s *Server) handleGetStatus(ctx context.Context, request mcp.CallToolReques
 	if count > 0 {
 		return mcp.NewToolResultText(fmt.Sprintf("connected (%d client(s), WebSocket: ws://%s)", count, s.wsAddr)), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("No clients connected. Ask the user to connect their iPhone to ws://%s", s.wsAddr)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("No clients connected. Ask the user to connect the Arshes app to ws://%s", s.wsAddr)), nil
 }

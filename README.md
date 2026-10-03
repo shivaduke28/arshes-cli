@@ -1,8 +1,8 @@
 # Arshes CLI
 
-A CLI tool that works with the [Arshes](https://x.com/arshes_net) iOS app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
+A CLI tool that works with the [Arshes](https://x.com/arshes_net) app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
 
-Arshes CLI implements the [Arshes Remote Editor Protocol v1](https://arshes.pages.dev/protocol) for communication with the Arshes iOS app over WebSocket.
+Arshes CLI implements the [Arshes Remote Editor Protocol v1](https://arshes.pages.dev/protocol) for communication with the Arshes app over WebSocket.
 
 ## Installation
 
@@ -13,12 +13,12 @@ go install github.com/shivaduke28/arshes-cli/cmd/arshes@latest
 ### Requirements
 
 - Go 1.24 or later
-- Arshes iOS app
-- PC and iPhone on the same local network (Wi-Fi)
+- Arshes app
+- PC and your device on the same local network (Wi-Fi)
 
 ## Serve
 
-Start a WebSocket server that watches a shader file and sends updates to iPhone in real-time.
+Start a WebSocket server that watches a shader file and sends updates to the connected device in real-time.
 
 ```bash
 # Start server (auto-generates a new shader file)
@@ -36,14 +36,14 @@ arshes serve --log
 
 If no file is specified, a timestamped file (e.g., `shader_20260125200800.slang`) is created automatically.
 
-### Connecting from iPhone
+### Connecting from the App
 
-1. Open the Remote Editor feature in the Arshes iOS app
+1. Open the Remote Editor feature in the Arshes app
 2. Enter the server address (e.g., `192.168.1.5:10080`) and connect
 
 To restrict access, set `--token` (or `ARSHES_TOKEN` env var) on the server and configure the same token in the Arshes app. The token is verified during the WebSocket handshake.
 
-Once connected, saving the shader file on your PC automatically sends it to iPhone for compilation and preview.
+Once connected, saving the shader file on your PC automatically sends it to the connected device for compilation and preview.
 
 ### Flags
 
@@ -55,7 +55,7 @@ Once connected, saving the shader file on your PC automatically sends it to iPho
 
 ## MCP
 
-Start an MCP (Model Context Protocol) server with a WebSocket bridge to iPhone. This allows AI agents like Claude Code to compile and preview shaders on the connected iPhone.
+Start an MCP (Model Context Protocol) server with a WebSocket bridge to the Arshes app. This allows AI agents like Claude Code to compile and preview shaders on the connected device.
 
 ```bash
 arshes mcp
@@ -83,10 +83,10 @@ ARSHES_TOKEN=mytoken arshes mcp --transport http
 
 | Tool | Description |
 |------|-------------|
-| `compile_shader` | Send shader code to iPhone for compilation. Accepts `code` (inline) or `file` (path to .slang file). Optionally save rendered image to `image` path. |
-| `get_shader` | Get the last synced shader code from iPhone. |
+| `compile_shader` | Send shader code to the connected device for compilation. Accepts `code` (inline) or `file` (path to .slang file). Optionally save rendered image to `image` path. |
+| `get_shader` | Get the last synced shader code from the connected device. |
 | `get_shader_spec` | Get the Slang shader API specification (available uniforms, parameter attributes, entry point signature). |
-| `get_status` | Get iPhone connection status and WebSocket server address. |
+| `get_status` | Get device connection status and WebSocket server address. |
 
 ### Configuration
 

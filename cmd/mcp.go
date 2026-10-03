@@ -21,9 +21,9 @@ var transport string
 
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
-	Short: "Start MCP server with WebSocket bridge to iPhone",
-	Long: `Start an MCP server that bridges to the iPhone via WebSocket.
-This allows AI agents like Claude Code to compile shaders on the connected iPhone.
+	Short: "Start MCP server with WebSocket bridge to the Arshes app",
+	Long: `Start an MCP server that bridges to the Arshes app via WebSocket.
+This allows AI agents like Claude Code to compile shaders on the connected device.
 
 Transport modes:
   stdio  - Communicate via stdin/stdout (default, used by Claude Code locally)
@@ -47,11 +47,11 @@ func runMcp(cmd *cobra.Command, args []string) error {
 	wsServer := websocket.NewServer(port, getToken())
 
 	wsServer.OnConnect(func(remoteAddr string) {
-		logger.Printf("iPhone connected: %s", remoteAddr)
+		logger.Printf("Client connected: %s", remoteAddr)
 	})
 
 	wsServer.OnDisconnect(func(remoteAddr string) {
-		logger.Printf("iPhone disconnected: %s", remoteAddr)
+		logger.Printf("Client disconnected: %s", remoteAddr)
 	})
 
 	// Resolve local address for display
@@ -167,7 +167,7 @@ func runMcpHTTP(logger *log.Logger, wsServer *websocket.Server, mcpSrv *mcpserve
 	}()
 
 	logger.Printf("Server listening on :%d (MCP: /mcp, WebSocket: /)", port)
-	logger.Printf("iPhone WebSocket address: ws://%s", wsAddr)
+	logger.Printf("WebSocket address: ws://%s", wsAddr)
 
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %w", err)
