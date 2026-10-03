@@ -41,7 +41,7 @@ var rootCmd = &cobra.Command{
 	Version: getVersion(),
 	Short:   "CLI tool for Arshes shader development",
 	Long: `Arshes CLI allows you to edit shaders on your computer
-and send them to your iPhone for real-time preview.
+and send them to your device for real-time preview.
 
 Usage:
   arshes serve <file> [--port 10080]`,

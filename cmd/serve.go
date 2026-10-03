@@ -22,7 +22,7 @@ var serveCmd = &cobra.Command{
 	Use:   "serve [file]",
 	Short: "Start shader server and watch file for changes",
 	Long: `Start a WebSocket server and watch a shader file for changes.
-When the file changes, the new shader code is automatically sent to the connected iPhone.
+When the file changes, the new shader code is automatically sent to the connected device.
 If no file is specified, a new file with timestamp will be created (shader_YYYYMMDDhhmmss.slang).`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runServe,
@@ -122,7 +122,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	})
 
 	server.OnSendShader(func(code string) {
-		// Save the current shader from iPhone to the file
+		// Save the current shader from the device to the file
 		ignoreMu.Lock()
 		ignoreNextChange = true
 		ignoreMu.Unlock()
