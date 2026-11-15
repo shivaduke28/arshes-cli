@@ -2,7 +2,7 @@
 
 [English](README.md) | 日本語
 
-[Arshes](https://x.com/arshes_net) アプリと連携し、PC からシェーダーを編集・プレビューするための CLI ツールです。ファイル監視モード（`serve`）と、AI エージェント連携用の MCP サーバーモード（`mcp`）に対応しています。
+[Arshes](https://arshes.shivaduke28.net/ja/) アプリと連携し、PC からシェーダーを編集・プレビューするための CLI ツールです。ファイル監視モード（`serve`）と、AI エージェント連携用の MCP サーバーモード（`mcp`）に対応しています。
 
 Arshes CLI は [Arshes Remote Editor Protocol v1](https://arshes.shivaduke28.net/ja/protocol/) を実装しており、WebSocket 経由で Arshes アプリと通信します。
 

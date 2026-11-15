@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-A CLI tool that works with the [Arshes](https://x.com/arshes_net) app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
+A CLI tool that works with the [Arshes](https://arshes.shivaduke28.net/) app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
 
 Arshes CLI implements the [Arshes Remote Editor Protocol v1](https://arshes.shivaduke28.net/protocol/) for communication with the Arshes app over WebSocket.
 
