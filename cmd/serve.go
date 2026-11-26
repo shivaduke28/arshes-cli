@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,11 +13,15 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/shivaduke28/arshes-cli/internal/protocol"
 	"github.com/shivaduke28/arshes-cli/internal/websocket"
 	"github.com/spf13/cobra"
 )
 
 var enableLog bool
+
+// compileTimeout bounds how long serve waits for a compileShader response.
+const compileTimeout = 30 * time.Second
 
 var serveCmd = &cobra.Command{
 	Use:   "serve [file]",
@@ -134,18 +139,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		logPrint("Received and saved current shader from client (%d bytes)\n", "", len(code))
 	})
 
-	server.OnCompileResult(func(success bool, errorMsg *string, image *string) {
-		if success {
-			logPrint("✓ Compiled successfully\n", "\033[32m")
-		} else {
-			errStr := "unknown error"
-			if errorMsg != nil {
-				errStr = *errorMsg
-			}
-			logPrint("✗ Compile error:\n%s\n", "\033[31m", errStr)
-		}
-	})
-
 	// Start server in background
 	go func() {
 		if err := server.Start(); err != nil {
@@ -226,12 +219,29 @@ func runServe(cmd *cobra.Command, args []string) error {
 					return
 				}
 
-				if err := server.SendCompileShader(string(content), false); err != nil {
-					logPrint("✗ Failed to send update: %v\n", "\033[31m", err)
+				logPrint("Sent shader update (%d bytes)\n", "", len(content))
+
+				ctx, cancel := context.WithTimeout(context.Background(), compileTimeout)
+				defer cancel()
+				raw, err := server.Call(ctx, protocol.MethodCompileShader, protocol.CompileShaderParams{Code: string(content)})
+				if err != nil {
+					logPrint("✗ Failed to compile: %v\n", "\033[31m", err)
 					return
 				}
-
-				logPrint("Sent shader update (%d bytes)\n", "", len(content))
+				var result protocol.CompileShaderResult
+				if err := json.Unmarshal(raw, &result); err != nil {
+					logPrint("✗ Invalid compile result: %v\n", "\033[31m", err)
+					return
+				}
+				if result.Success {
+					logPrint("✓ Compiled successfully (%g ms)\n", "\033[32m", result.DurationMs)
+				} else {
+					errStr := result.ErrorMessage
+					if errStr == "" {
+						errStr = "unknown error"
+					}
+					logPrint("✗ Compile error (%g ms):\n%s\n", "\033[31m", result.DurationMs, errStr)
+				}
 			})
 			debounceMu.Unlock()
 
