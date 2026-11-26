@@ -4,7 +4,7 @@
 
 [Arshes](https://arshes.shivaduke28.net/ja/) アプリと連携し、PC からシェーダーを編集・プレビューするための CLI ツールです。ファイル監視モード（`serve`）と、AI エージェント連携用の MCP サーバーモード（`mcp`）に対応しています。
 
-Arshes CLI は [Arshes Remote Editor Protocol v1](https://arshes.shivaduke28.net/ja/protocol/) を実装しており、WebSocket 経由で Arshes アプリと通信します。
+Arshes CLI は [Arshes Remote Editor Protocol v2](https://arshes.shivaduke28.net/ja/protocol/v2/)（WebSocket 上の JSON-RPC 2.0）を実装しており、Arshes アプリと通信します。v2 だけに対応しているため、v1 にしか対応していないバージョンのアプリとは接続できません。
 
 ## インストール
 
@@ -57,7 +57,7 @@ arshes serve --log
 
 ## MCP
 
-Arshes アプリへの WebSocket ブリッジを備えた MCP（Model Context Protocol）サーバーを起動します。Claude Code などの AI エージェントが、接続中のデバイス上でシェーダーをコンパイル・プレビューできるようになります。
+Arshes アプリへの WebSocket ブリッジを備えた MCP（Model Context Protocol）サーバーを起動します。Claude Code などの AI エージェントが、接続中のデバイスでシェーダーをコンパイルしたり、描画結果を撮影したり、uniform などの設定を変えたりできるようになります。
 
 ```bash
 arshes mcp
@@ -85,10 +85,18 @@ ARSHES_TOKEN=mytoken arshes mcp --transport http
 
 | ツール | 説明 |
 |------|-------------|
-| `compile_shader` | シェーダーコードを接続中のデバイスへ送信してコンパイルします。`code`（インライン）または `file`（.slang ファイルへのパス）を受け付けます。`image` にパスを指定すると、レンダリング結果の画像を保存できます。 |
+| `compile_shader` | シェーダーコードを接続中のデバイスへ送信してコンパイルします。`code`（インライン）または `file`（.slang ファイルへのパス）を受け付けます。成功したかどうか、失敗時のコンパイラのエラー、デバイスでのコンパイル時間を返します。画像は返しません。 |
+| `capture_image` | 次に描画されたフレームを JPEG（長辺は最大 512 px）で撮影します。画像をそのまま返すか、`image` にパスを指定するとそこに保存します。 |
+| `get_uniforms` | 描画中のシェーダーのカスタム uniform（`range`・`rgb`・`rgba`・`toggle`）の現在の値を取得します。 |
+| `set_uniforms` | `values`（uniform の名前をキーにしたオブジェクト）でカスタム uniform の値を変更します。不正な値が1つでもあると、どの値も変わりません。 |
+| `set_aspect_ratio` | カメラ映像のアスペクト比を変更します（`1:1`、`4:3`、`16:9`、`2.35:1`、`full`）。 |
+| `get_diagnostics` | 描画の統計情報（`fps`、測れる端末では `gpuTimeMs`、レンダー解像度の `resolution`）を取得します。 |
+| `set_touch` | 組み込み uniform の `touch` を `x`・`y`（0〜1、左上が原点）と `z`（触れている間は 1、離すと 0）で設定します。 |
 | `get_shader` | 接続中のデバイスから最後に同期されたシェーダーコードを取得します。 |
 | `get_shader_spec` | Slang シェーダーの API 仕様（利用可能な uniform、パラメータ属性、エントリーポイントのシグネチャ）を取得します。 |
 | `get_status` | デバイスの接続状態と WebSocket サーバーのアドレスを取得します。 |
+
+複数のデバイスが接続しているときは、各リクエストをすべてのデバイスに送り、最初に成功したレスポンスを使います。`set_uniforms` などの変更は、接続しているすべてのデバイスに反映されます。`set_aspect_ratio` は、アプリの UI でアスペクト比を選んだときと同じ挙動になります。
 
 ### 設定
 

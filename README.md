@@ -4,7 +4,7 @@ English | [日本語](README.ja.md)
 
 A CLI tool that works with the [Arshes](https://arshes.shivaduke28.net/) app to edit and preview shaders from your PC. Supports file-watching mode (`serve`) and MCP server mode (`mcp`) for AI agent integration.
 
-Arshes CLI implements the [Arshes Remote Editor Protocol v1](https://arshes.shivaduke28.net/protocol/) for communication with the Arshes app over WebSocket.
+Arshes CLI implements the [Arshes Remote Editor Protocol v2](https://arshes.shivaduke28.net/protocol/v2/) (JSON-RPC 2.0 over WebSocket) for communication with the Arshes app. It speaks only v2 and cannot connect to app versions that support only v1.
 
 ## Installation
 
@@ -57,7 +57,7 @@ Once connected, saving the shader file on your PC automatically sends it to the 
 
 ## MCP
 
-Start an MCP (Model Context Protocol) server with a WebSocket bridge to the Arshes app. This allows AI agents like Claude Code to compile and preview shaders on the connected device.
+Start an MCP (Model Context Protocol) server with a WebSocket bridge to the Arshes app. This allows AI agents like Claude Code to compile shaders, capture the rendered image, and adjust uniforms and other settings on the connected device.
 
 ```bash
 arshes mcp
@@ -85,10 +85,18 @@ ARSHES_TOKEN=mytoken arshes mcp --transport http
 
 | Tool | Description |
 |------|-------------|
-| `compile_shader` | Send shader code to the connected device for compilation. Accepts `code` (inline) or `file` (path to .slang file). Optionally save rendered image to `image` path. |
+| `compile_shader` | Send shader code to the connected device for compilation. Accepts `code` (inline) or `file` (path to .slang file). Returns whether it succeeded, the compiler error on failure, and the compile time on the device. Does not return an image. |
+| `capture_image` | Capture the next rendered frame as a JPEG (long edge up to 512 px). Returned inline, or saved to the `image` path if given. |
+| `get_uniforms` | Get the current values of the custom uniforms (`range`, `rgb`, `rgba`, `toggle`) of the shader being rendered. |
+| `set_uniforms` | Set custom uniform values with `values` (an object keyed by uniform name). If any value is invalid, nothing is changed. |
+| `set_aspect_ratio` | Change the camera view's aspect ratio (`1:1`, `4:3`, `16:9`, `2.35:1`, `full`). |
+| `get_diagnostics` | Get rendering statistics: `fps`, `gpuTimeMs` (if the device can measure it), and render `resolution`. |
+| `set_touch` | Set the built-in `touch` uniform with `x`, `y` (0–1, origin at top left) and `z` (1 while touching, 0 when released). |
 | `get_shader` | Get the last synced shader code from the connected device. |
 | `get_shader_spec` | Get the Slang shader API specification (available uniforms, parameter attributes, entry point signature). |
 | `get_status` | Get device connection status and WebSocket server address. |
+
+When multiple devices are connected, each request is sent to all of them and the first successful response is used. Changes such as `set_uniforms` apply to every connected device. `set_aspect_ratio` behaves the same as choosing the aspect ratio in the app UI.
 
 ### Configuration
 
